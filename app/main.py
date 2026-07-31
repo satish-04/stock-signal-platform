@@ -12,6 +12,7 @@ from app.api.routes import (
     options,
     order_executions,
     order_intents,
+    positions,
     signals,
     technical_signals,
     trade_risk,
@@ -45,5 +46,6 @@ app.include_router(ai.router)
 app.include_router(options.router)
 app.include_router(order_executions.router)
 app.include_router(order_intents.router)
+app.include_router(positions.router)
 app.include_router(trade_risk.router)
 app.mount("/metrics", make_asgi_app())
