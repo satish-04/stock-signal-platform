@@ -44,3 +44,14 @@ target-version = "py312"
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = [
+  "tests*",
+  "pine*",
+  "config*",
+  "grafana*",
+  "prometheus*",
+  "integrations*",
+]
