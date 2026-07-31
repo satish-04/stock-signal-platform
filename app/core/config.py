@@ -1,7 +1,9 @@
 from functools import lru_cache
 from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
@@ -37,6 +39,10 @@ class Settings(BaseSettings):
     max_daily_loss_pct: float = 1.50
     max_open_positions: int = 5
     signal_ttl_seconds: int = 120
+    order_intent_store: Literal["memory", "redis"] = "redis"
+    order_intent_key_prefix: str = "stock-signal:order-intents"
+    order_intent_ttl_seconds: int = 604800
+    order_intent_lock_ttl_seconds: int = 300
     signal_review_threshold: float = 65.0
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False
