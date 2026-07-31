@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     order_intent_key_prefix: str = "stock-signal:order-intents"
     order_intent_ttl_seconds: int = 604800
     order_intent_lock_ttl_seconds: int = 300
+    order_execution_key_prefix: str = "stock-signal:order-executions"
+    order_execution_ttl_seconds: int = 604800
+    order_execution_lock_ttl_seconds: int = 300
     signal_review_threshold: float = 65.0
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False
