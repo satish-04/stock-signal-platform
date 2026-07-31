@@ -11,3 +11,4 @@ venv/
 .claude/settings.local.json
 .claude/logs/
 .codex/
+.codex/
