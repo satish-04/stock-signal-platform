@@ -17,6 +17,7 @@ from app.api.routes import (
     signals,
     technical_signals,
     trade_risk,
+    trading_workflows,
     webhooks,
 )
 from app.core.config import get_settings
@@ -50,4 +51,5 @@ app.include_router(order_intents.router)
 app.include_router(positions.router)
 app.include_router(position_exits.router)
 app.include_router(trade_risk.router)
+app.include_router(trading_workflows.router)
 app.mount("/metrics", make_asgi_app())

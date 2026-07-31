@@ -64,6 +64,15 @@ class Settings(BaseSettings):
     position_max_holding_hours: int = 120
     position_expiration_exit_days: int = 2
     position_stale_mark_seconds: int = 300
+    trading_workflow_store: Literal["memory", "redis"] = "redis"
+    trading_workflow_key_prefix: str = "stock-signal:trading-workflows"
+    trading_workflow_ttl_seconds: int = 2592000
+    trading_workflow_lock_ttl_seconds: int = 300
+    paper_workflow_auto_create_intent: bool = True
+    paper_workflow_require_manual_approval: bool = True
+    paper_workflow_auto_submit: bool = False
+    paper_workflow_max_attempts: int = 3
+    paper_workflow_retry_delay_seconds: int = 30
     signal_review_threshold: float = 65.0
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False
