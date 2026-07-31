@@ -160,24 +160,53 @@ make signals
 
 For TradingView, replace the webhook secret in the Pine indicator settings, create one alert using **Any alert() function call**, and use the platform webhook URL. The script constructs the JSON dynamically; do not paste a static alert body.
 
+Phase 1 ✅ Infrastructure
+────────────────────────
+✔ Docker
+✔ PostgreSQL
+✔ Redis
+✔ FastAPI
+✔ Worker
+✔ Prometheus
+✔ Grafana
 
+Phase 2 ✅ Market Data
+──────────────────────
+✔ TradingView MCP
+✔ IBKR API
+✔ Historical candles
+✔ Option chains
 
-Phase 2:
-integrations/mcp/
-├── ibkr/
-│   ├── Dockerfile
-│   ├── server.py
-│   └── README.md
-└── tradingview/
-    ├── README.md
-    └── launch-macos.sh
+Phase 3 (Next)
+──────────────────────
+□ Technical indicator engine
+□ Signal engine
+□ Strategy engine
+□ Risk engine
 
-app/services/mcp/
-├── client.py
-├── ibkr_client.py
-├── tradingview_client.py
-└── schemas.py
+Phase 4
+──────────────────────
+□ Paper trading
+□ Position manager
+□ Portfolio manager
 
-config/mcp/
-├── claude-code.example.json
-└── tool-policy.yaml
+Phase 5
+──────────────────────
+□ Claude AI reasoning
+□ News analysis
+□ Multi-agent consensus
+
+Phase 6
+──────────────────────
+□ React Dashboard
+□ Live charts
+□ Option chain
+□ Portfolio
+□ Watchlist
+
+Phase 7
+──────────────────────
+□ Production deployment
+□ Kubernetes
+□ Monitoring
+□ Secrets
