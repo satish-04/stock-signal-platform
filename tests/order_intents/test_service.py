@@ -64,26 +64,32 @@ def approved_plan():
 def settings(**overrides: object) -> Settings:
     return Settings(
         tradingview_webhook_secret="test-webhook-secret-123456",
+        order_intent_store="memory",
         **overrides,
     )
 
 
-def test_create_intent_from_approved_plan() -> None:
-    intent = PaperOrderApprovalService(RecordingBroker()).create_intent(approved_plan())
+@pytest.mark.asyncio
+async def test_create_intent_from_approved_plan() -> None:
+    intent = await PaperOrderApprovalService(
+        RecordingBroker(), settings=settings()
+    ).create_intent(approved_plan())
     assert intent.status == "APPROVED"
     assert intent.intent_id.startswith("intent_")
     assert len(intent.idempotency_key) == 64
     assert intent.option_symbol == approved_plan().option_symbol
 
 
-def test_idempotency_key_is_deterministic_and_duplicate_is_rejected() -> None:
-    service = PaperOrderApprovalService(RecordingBroker())
-    first = service.create_intent(approved_plan())
+@pytest.mark.asyncio
+async def test_idempotency_key_is_deterministic_and_duplicate_is_rejected() -> None:
+    service = PaperOrderApprovalService(RecordingBroker(), settings=settings())
+    first = await service.create_intent(approved_plan())
     with pytest.raises(DuplicateOrderIntentError):
-        service.create_intent(approved_plan())
+        await service.create_intent(approved_plan())
     assert first.idempotency_key == service._idempotency_key(approved_plan())
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "plan",
     [
@@ -94,9 +100,11 @@ def test_idempotency_key_is_deterministic_and_duplicate_is_rejected() -> None:
         replace(approved_plan(), rejection_reasons=("blocked",)),
     ],
 )
-def test_invalid_plan_is_rejected(plan) -> None:
+async def test_invalid_plan_is_rejected(plan) -> None:
     with pytest.raises(OrderIntentRejectedError):
-        PaperOrderApprovalService(RecordingBroker()).create_intent(plan)
+        await PaperOrderApprovalService(
+            RecordingBroker(), settings=settings()
+        ).create_intent(plan)
 
 
 @pytest.mark.asyncio

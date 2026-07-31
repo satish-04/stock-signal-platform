@@ -77,7 +77,7 @@ async def create_order_intent(
     payload: OrderIntentTradePlanRequest,
 ) -> OrderIntentResponse:
     try:
-        intent = PaperOrderApprovalService(get_broker()).create_intent(
+        intent = await PaperOrderApprovalService(get_broker()).create_intent(
             _to_trade_plan(payload)
         )
     except OrderIntentRejectedError as exc:

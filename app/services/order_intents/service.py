@@ -7,8 +7,9 @@ from decimal import Decimal
 
 from app.core.config import Settings, get_settings
 from app.services.brokers.base import BrokerAdapter
+from app.services.order_intents.factory import get_order_intent_store
 from app.services.order_intents.models import OrderIntent, OrderSubmissionResult
-from app.services.order_intents.store import InMemoryOrderIntentStore
+from app.services.order_intents.store import OrderIntentStore
 from app.services.trade_risk.models import TradePlan
 
 ZERO = Decimal(0)
@@ -30,12 +31,12 @@ class PaperOrderApprovalService:
     def __init__(
         self,
         broker: BrokerAdapter,
-        store: InMemoryOrderIntentStore | None = None,
+        store: OrderIntentStore | None = None,
         settings: Settings | None = None,
     ) -> None:
         self.broker = broker
-        self.store = store or InMemoryOrderIntentStore()
         self.settings = settings or get_settings()
+        self.store = store or get_order_intent_store(self.settings)
 
     @staticmethod
     def _idempotency_key(trade_plan: TradePlan) -> str:
@@ -79,12 +80,13 @@ class PaperOrderApprovalService:
                 "Trade plan maximum loss must be greater than zero."
             )
 
-    def create_intent(self, trade_plan: TradePlan) -> OrderIntent:
+    async def create_intent(self, trade_plan: TradePlan) -> OrderIntent:
         self._validate_trade_plan(trade_plan)
         idempotency_key = self._idempotency_key(trade_plan)
-        self.store.register(idempotency_key)
-        return OrderIntent(
-            intent_id=self._intent_id(idempotency_key),
+        intent_id = self._intent_id(idempotency_key)
+        await self.store.reserve(idempotency_key, intent_id)
+        intent = OrderIntent(
+            intent_id=intent_id,
             idempotency_key=idempotency_key,
             symbol=trade_plan.symbol,
             option_symbol=trade_plan.option_symbol,
@@ -102,6 +104,12 @@ class PaperOrderApprovalService:
             reasons=trade_plan.reasons,
             rejection_reasons=trade_plan.rejection_reasons,
         )
+        try:
+            await self.store.save(intent)
+        except RuntimeError:
+            await self.store.delete(intent_id, idempotency_key)
+            raise
+        return intent
 
     async def submit(self, trade_plan: TradePlan) -> OrderSubmissionResult:
         if self.settings.trading_mode != "paper":
@@ -111,7 +119,7 @@ class PaperOrderApprovalService:
         if not self.settings.enable_order_submission:
             raise OrderSubmissionDisabledError("Order submission is disabled.")
 
-        intent = self.create_intent(trade_plan)
+        intent = await self.create_intent(trade_plan)
         order_payload = {
             "intent_id": intent.intent_id,
             "idempotency_key": intent.idempotency_key,
@@ -127,11 +135,15 @@ class PaperOrderApprovalService:
         try:
             response = await self.broker.submit_order(order_payload)
         except RuntimeError as exc:
+            failed_intent = replace(intent, status="FAILED")
+            await self.store.save(failed_intent)
             return OrderSubmissionResult(
-                intent=replace(intent, status="FAILED"),
+                intent=failed_intent,
                 broker_response={"error": str(exc)},
             )
+        submitted_intent = replace(intent, status="SUBMITTED")
+        await self.store.save(submitted_intent)
         return OrderSubmissionResult(
-            intent=replace(intent, status="SUBMITTED"),
+            intent=submitted_intent,
             broker_response=response,
         )
