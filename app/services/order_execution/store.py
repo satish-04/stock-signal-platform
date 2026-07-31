@@ -28,6 +28,7 @@ class OrderExecutionStore(Protocol):
         self, broker_order_id: str
     ) -> OrderExecution | None: ...
     async def delete(self, execution: OrderExecution) -> None: ...
+    async def list_ids_by_statuses(self, statuses: tuple[str, ...], *, limit: int) -> list[str]: ...
 
 
 class InMemoryOrderExecutionStore:
@@ -75,6 +76,14 @@ class InMemoryOrderExecutionStore:
             if execution.broker_order_id:
                 self._by_broker.pop(execution.broker_order_id, None)
 
+    async def list_ids_by_statuses(self, statuses: tuple[str, ...], *, limit: int) -> list[str]:
+        async with self._lock:
+            values = sorted(
+                (e for e in self._executions.values() if e.status in statuses),
+                key=lambda e: e.updated_at,
+            )
+            return [e.execution_id for e in values[:limit]]
+
 
 class RedisOrderExecutionStore:
     def __init__(
@@ -102,6 +111,9 @@ class RedisOrderExecutionStore:
 
     def _broker_key(self, value: str) -> str:
         return f"{self.key_prefix}:broker:{value}"
+
+    def _status_key(self, value: str) -> str:
+        return f"{self.key_prefix}:status:{value}"
 
     @staticmethod
     def _serialize(execution: OrderExecution) -> str:
@@ -172,6 +184,15 @@ class RedisOrderExecutionStore:
                 execution.execution_id,
                 ex=self.execution_ttl_seconds,
             )
+        for status in (
+            "CREATED", "SUBMISSION_PENDING", "SUBMITTED", "ACKNOWLEDGED",
+            "PARTIALLY_FILLED", "FILLED", "CANCEL_PENDING", "CANCELLED", "REJECTED", "FAILED",
+        ):
+            pipeline.zrem(self._status_key(status), execution.execution_id)
+        pipeline.zadd(
+            self._status_key(execution.status),
+            {execution.execution_id: execution.updated_at.timestamp()},
+        )
         await pipeline.execute()
 
     async def get(self, execution_id: str) -> OrderExecution | None:
@@ -202,3 +223,17 @@ class RedisOrderExecutionStore:
         if execution.broker_order_id:
             keys.append(self._broker_key(execution.broker_order_id))
         await self.redis.delete(*keys)
+        for status in (
+            "CREATED", "SUBMISSION_PENDING", "SUBMITTED", "ACKNOWLEDGED",
+            "PARTIALLY_FILLED", "FILLED", "CANCEL_PENDING", "CANCELLED", "REJECTED", "FAILED",
+        ):
+            await self.redis.zrem(self._status_key(status), execution.execution_id)
+
+    async def list_ids_by_statuses(self, statuses: tuple[str, ...], *, limit: int) -> list[str]:
+        candidates: dict[str, float] = {}
+        for status in statuses:
+            rows = await self.redis.zrange(self._status_key(status), 0, limit - 1, withscores=True)
+            for value, score in rows:
+                key = value.decode() if isinstance(value, bytes) else value
+                candidates[key] = min(candidates.get(key, float(score)), float(score))
+        return [key for key, _ in sorted(candidates.items(), key=lambda item: item[1])[:limit]]

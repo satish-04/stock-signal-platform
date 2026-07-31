@@ -86,12 +86,21 @@ class Settings(BaseSettings):
     exit_monitoring_interval_seconds: int = 60
     stale_workflow_cleanup_interval_seconds: int = 300
     background_automation_enabled: bool = True
+    background_sweep_batch_size: int = 100
+    background_sweep_stale_workflow_seconds: int = 900
+    background_sweep_index_ttl_seconds: int = 2592000
     signal_review_threshold: float = 65.0
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False
     enable_live_trading: bool = False
 
     def validate_safety(self) -> None:
+        if self.background_sweep_batch_size <= 0:
+            raise RuntimeError("BACKGROUND_SWEEP_BATCH_SIZE must be greater than zero")
+        if self.background_sweep_stale_workflow_seconds <= 0:
+            raise RuntimeError("BACKGROUND_SWEEP_STALE_WORKFLOW_SECONDS must be greater than zero")
+        if self.background_sweep_index_ttl_seconds <= 0:
+            raise RuntimeError("BACKGROUND_SWEEP_INDEX_TTL_SECONDS must be greater than zero")
         if self.signal_review_threshold >= self.signal_actionable_threshold:
             raise RuntimeError("SIGNAL_REVIEW_THRESHOLD must be lower than SIGNAL_ACTIONABLE_THRESHOLD")
         if self.trading_mode == "live" and not self.enable_live_trading:

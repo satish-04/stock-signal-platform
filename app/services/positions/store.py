@@ -30,6 +30,8 @@ class PositionStore(Protocol):
     async def get_fill(self, fill_id: str) -> ExecutionFill | None: ...
     async def list_positions(self, account_id: str) -> list[Position]: ...
     async def release_fill(self, fill_id: str) -> None: ...
+    async def list_ids_by_statuses(self, statuses: tuple[str, ...], *, limit: int) -> list[str]: ...
+    async def list_account_ids(self, *, limit: int) -> list[str]: ...
 
 
 class InMemoryPositionStore:
@@ -39,6 +41,7 @@ class InMemoryPositionStore:
         self._reserved: set[str] = set()
         self._by_contract: dict[tuple[str, str, str], str] = {}
         self._lock = asyncio.Lock()
+        self._accounts: set[str] = set()
 
     async def reserve_fill(self, fill_id: str) -> None:
         async with self._lock:
@@ -59,6 +62,7 @@ class InMemoryPositionStore:
         self._by_contract[
             (position.account_id, position.option_symbol, position.side)
         ] = position.position_id
+        self._accounts.add(position.account_id)
 
     async def save_position(self, position: Position) -> None:
         async with self._lock:
@@ -86,6 +90,18 @@ class InMemoryPositionStore:
     async def release_fill(self, fill_id: str) -> None:
         async with self._lock:
             self._reserved.discard(fill_id)
+
+    async def list_ids_by_statuses(self, statuses: tuple[str, ...], *, limit: int) -> list[str]:
+        async with self._lock:
+            values = sorted(
+                (p for p in self._positions.values() if p.status in statuses),
+                key=lambda p: p.updated_at,
+            )
+            return [p.position_id for p in values[:limit]]
+
+    async def list_account_ids(self, *, limit: int) -> list[str]:
+        async with self._lock:
+            return sorted(self._accounts)[:limit]
 
 
 class RedisPositionStore:
@@ -118,6 +134,12 @@ class RedisPositionStore:
 
     def _account_key(self, value: str) -> str:
         return f"{self.key_prefix}:account:{value}"
+
+    def _accounts_key(self) -> str:
+        return f"{self.key_prefix}:accounts"
+
+    def _status_index_key(self, value: str) -> str:
+        return f"{self.key_prefix}:status:{value}"
 
     @staticmethod
     def _serialize(value: Position | ExecutionFill) -> str:
@@ -179,6 +201,13 @@ class RedisPositionStore:
         )
         pipe.sadd(self._account_key(position.account_id), position.position_id)
         pipe.expire(self._account_key(position.account_id), self.position_ttl_seconds)
+        pipe.zrem(self._status_index_key("OPEN"), position.position_id)
+        pipe.zrem(self._status_index_key("CLOSED"), position.position_id)
+        pipe.zadd(
+            self._status_index_key(position.status),
+            {position.position_id: position.updated_at.timestamp()},
+        )
+        pipe.sadd(self._accounts_key(), position.account_id)
         await pipe.execute()
 
     async def save_update(self, position: Position, fill: ExecutionFill) -> None:
@@ -221,3 +250,16 @@ class RedisPositionStore:
 
     async def release_fill(self, fill_id: str) -> None:
         await self.redis.delete(self._fill_lock_key(fill_id))
+
+    async def list_ids_by_statuses(self, statuses: tuple[str, ...], *, limit: int) -> list[str]:
+        candidates: dict[str, float] = {}
+        for status in statuses:
+            rows = await self.redis.zrange(self._status_index_key(status), 0, limit - 1, withscores=True)
+            for value, score in rows:
+                key = value.decode() if isinstance(value, bytes) else value
+                candidates[key] = min(candidates.get(key, float(score)), float(score))
+        return [key for key, _ in sorted(candidates.items(), key=lambda item: item[1])[:limit]]
+
+    async def list_account_ids(self, *, limit: int) -> list[str]:
+        values = await self.redis.smembers(self._accounts_key())
+        return sorted(v.decode() if isinstance(v, bytes) else v for v in values)[:limit]
