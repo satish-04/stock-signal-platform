@@ -1,12 +1,25 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
-from app.api.routes import analysis, dev, health, historical, signals, technical_signals, webhooks
+
+from app.api.routes import (
+    ai,
+    analysis,
+    dev,
+    health,
+    historical,
+    options,
+    signals,
+    technical_signals,
+    webhooks,
+)
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.session import engine
 from app.models import entities  # noqa: F401
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,4 +38,6 @@ app.include_router(signals.router)
 app.include_router(historical.router)
 app.include_router(analysis.router)
 app.include_router(technical_signals.router)
+app.include_router(ai.router)
+app.include_router(options.router)
 app.mount("/metrics", make_asgi_app())

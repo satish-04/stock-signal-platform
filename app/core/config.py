@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     trading_mode: Literal["paper", "live"] = "paper"
     market_data_mode: Literal["mock", "ibkr"] = "mock"
     tradingview_webhook_secret: str = Field(min_length=16)
+    ai_mode: Literal["mock", "claude"] = "mock"
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-5"
     ibkr_host: str = "host.docker.internal"
