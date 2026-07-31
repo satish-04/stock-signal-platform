@@ -12,6 +12,7 @@ from app.api.routes import (
     options,
     signals,
     technical_signals,
+    trade_risk,
     webhooks,
 )
 from app.core.config import get_settings
@@ -40,4 +41,5 @@ app.include_router(analysis.router)
 app.include_router(technical_signals.router)
 app.include_router(ai.router)
 app.include_router(options.router)
+app.include_router(trade_risk.router)
 app.mount("/metrics", make_asgi_app())
