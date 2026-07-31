@@ -6,22 +6,25 @@ from app.services.order_intents import (
 )
 
 
-def test_register_and_contains() -> None:
+@pytest.mark.asyncio
+async def test_register_and_contains() -> None:
     store = InMemoryOrderIntentStore()
-    store.register("key")
-    assert store.contains("key")
+    await store.register("key")
+    assert await store.contains("key")
 
 
-def test_duplicate_registration_is_rejected() -> None:
+@pytest.mark.asyncio
+async def test_duplicate_registration_is_rejected() -> None:
     store = InMemoryOrderIntentStore()
-    store.register("key")
+    await store.register("key")
     with pytest.raises(DuplicateOrderIntentError):
-        store.register("key")
+        await store.register("key")
 
 
-def test_clear_allows_key_to_be_registered_again() -> None:
+@pytest.mark.asyncio
+async def test_clear_allows_key_to_be_registered_again() -> None:
     store = InMemoryOrderIntentStore()
-    store.register("key")
-    store.clear()
-    store.register("key")
-    assert store.contains("key")
+    await store.register("key")
+    await store.clear()
+    await store.register("key")
+    assert await store.contains("key")
