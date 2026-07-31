@@ -1,0 +1,63 @@
+//@version=6
+indicator("Enterprise Signal Producer v0.3", overlay=true)
+
+webhookSecret = input.string("REPLACE_WITH_YOUR_SECRET", "Webhook secret")
+fastLength = input.int(20, "Fast EMA", minval=2)
+slowLength = input.int(50, "Slow EMA", minval=3)
+rsiLength = input.int(14, "RSI length", minval=2)
+relativeVolumeLength = input.int(20, "Relative-volume length", minval=2)
+fastHigherTimeframe = input.timeframe("15", "Fast confirmation timeframe")
+slowHigherTimeframe = input.timeframe("60", "Slow confirmation timeframe")
+
+fast = ta.ema(close, fastLength)
+slow = ta.ema(close, slowLength)
+vwapValue = ta.vwap(hlc3)
+rsiValue = ta.rsi(close, rsiLength)
+volumeAverage = ta.sma(volume, relativeVolumeLength)
+relativeVolume = volumeAverage > 0 ? volume / volumeAverage : 0.0
+
+fastHtfFast = request.security(syminfo.tickerid, fastHigherTimeframe, ta.ema(close, fastLength), lookahead=barmerge.lookahead_off)
+fastHtfSlow = request.security(syminfo.tickerid, fastHigherTimeframe, ta.ema(close, slowLength), lookahead=barmerge.lookahead_off)
+slowHtfFast = request.security(syminfo.tickerid, slowHigherTimeframe, ta.ema(close, fastLength), lookahead=barmerge.lookahead_off)
+slowHtfSlow = request.security(syminfo.tickerid, slowHigherTimeframe, ta.ema(close, slowLength), lookahead=barmerge.lookahead_off)
+
+fastHtfTrend = fastHtfFast > fastHtfSlow ? "bullish" : fastHtfFast < fastHtfSlow ? "bearish" : "neutral"
+slowHtfTrend = slowHtfFast > slowHtfSlow ? "bullish" : slowHtfFast < slowHtfSlow ? "bearish" : "neutral"
+
+bull = barstate.isconfirmed and close > fast and fast > slow and close > vwapValue and rsiValue > 52 and relativeVolume > 1.2
+bear = barstate.isconfirmed and close < fast and fast < slow and close < vwapValue and rsiValue < 48 and relativeVolume > 1.2
+
+buildPayload(signalName, emaAligned, aboveVwap) =>
+    '{"secret":"' + webhookSecret +
+    '","symbol":"' + syminfo.ticker +
+    '","exchange":"' + syminfo.prefix +
+    '","timeframe":"' + timeframe.period +
+    '","timestamp":"' + str.format_time(timenow, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC") +
+    '","close":' + str.tostring(close) +
+    ',"volume":' + str.tostring(volume) +
+    ',"signal":"' + signalName +
+    '","strategy":"ema_vwap_relative_volume_mtf"' +
+    ',"bar_confirmed":true' +
+    ',"indicators":{' +
+      '"rsi":' + str.tostring(rsiValue) +
+      ',"ema_fast":' + str.tostring(fast) +
+      ',"ema_slow":' + str.tostring(slow) +
+      ',"ema_aligned":' + str.tostring(emaAligned) +
+      ',"vwap":' + str.tostring(vwapValue) +
+      ',"above_vwap":' + str.tostring(aboveVwap) +
+      ',"relative_volume":' + str.tostring(relativeVolume) +
+      ',"mtf_fast_trend":"' + fastHtfTrend + '"' +
+      ',"mtf_slow_trend":"' + slowHtfTrend + '"' +
+    '}}'
+
+if bull
+    alert(buildPayload("bullish_breakout", true, true), alert.freq_once_per_bar_close)
+
+if bear
+    alert(buildPayload("bearish_breakdown", true, false), alert.freq_once_per_bar_close)
+
+plot(fast, "EMA 20")
+plot(slow, "EMA 50")
+plot(vwapValue, "VWAP")
+plotshape(bull, title="Bullish signal", style=shape.triangleup, location=location.belowbar, size=size.tiny)
+plotshape(bear, title="Bearish signal", style=shape.triangledown, location=location.abovebar, size=size.tiny)

@@ -1,0 +1,23 @@
+{
+  "secret": "REPLACE_WITH_YOUR_SECRET",
+  "symbol": "AAPL",
+  "exchange": "NASDAQ",
+  "timeframe": "5",
+  "timestamp": "2026-07-31T12:00:00Z",
+  "close": 190.00,
+  "volume": 1000000,
+  "signal": "bullish_breakout",
+  "strategy": "ema_vwap_relative_volume_mtf",
+  "bar_confirmed": true,
+  "indicators": {
+    "rsi": 61.0,
+    "ema_fast": 188.0,
+    "ema_slow": 184.0,
+    "ema_aligned": true,
+    "vwap": 187.0,
+    "above_vwap": true,
+    "relative_volume": 1.65,
+    "mtf_fast_trend": "bullish",
+    "mtf_slow_trend": "bullish"
+  }
+}
