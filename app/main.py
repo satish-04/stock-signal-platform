@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
-from app.api.routes import dev, health, signals, webhooks
+from app.api.routes import dev, health, historical, signals, webhooks
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
@@ -22,4 +22,5 @@ app.include_router(health.router)
 app.include_router(webhooks.router)
 app.include_router(dev.router)
 app.include_router(signals.router)
+app.include_router(historical.router)
 app.mount("/metrics", make_asgi_app())
