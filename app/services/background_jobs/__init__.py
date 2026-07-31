@@ -1,3 +1,4 @@
+from app.services.background_jobs.candidates import SweepCandidate, SweepCandidateType
 from app.services.background_jobs.factory import (
     clear_background_job_store_cache,
     get_background_job_store,
@@ -35,6 +36,8 @@ __all__ = [
     "DuplicateBackgroundJobError",
     "InMemoryBackgroundJobStore",
     "RedisBackgroundJobStore",
+    "SweepCandidate",
+    "SweepCandidateType",
     "SweepDefinition",
     "clear_background_job_store_cache",
     "get_background_job_store",
