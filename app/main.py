@@ -6,6 +6,7 @@ from prometheus_client import make_asgi_app
 from app.api.routes import (
     ai,
     analysis,
+    background_jobs,
     dev,
     health,
     historical,
@@ -43,6 +44,7 @@ app.include_router(dev.router)
 app.include_router(signals.router)
 app.include_router(historical.router)
 app.include_router(analysis.router)
+app.include_router(background_jobs.router)
 app.include_router(technical_signals.router)
 app.include_router(ai.router)
 app.include_router(options.router)
