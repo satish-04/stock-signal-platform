@@ -13,7 +13,9 @@ from app.services.background_jobs import (
     BackgroundJobType,
     DuplicateBackgroundJobError,
     get_background_job_store,
+    instrument_background_handler,
 )
+from app.workers.sweep_factory import get_background_sweep_service
 
 BackgroundHandler = Callable[[], Awaitable[BackgroundJobResult]]
 
@@ -23,28 +25,29 @@ def _schedule_bucket(interval_seconds: int) -> str:
     return str((now // interval_seconds) * interval_seconds)
 
 
-def _empty_result(message: str) -> BackgroundJobResult:
-    return BackgroundJobResult(0, 0, 0, 0, (message,))
-
-
 async def _workflow_reconciliation_handler() -> BackgroundJobResult:
-    return _empty_result("Workflow reconciliation sweep completed.")
+    service = get_background_sweep_service()
+    return await instrument_background_handler(job_type="WORKFLOW_RECONCILIATION", handler=service.reconcile_workflows)
 
 
 async def _execution_reconciliation_handler() -> BackgroundJobResult:
-    return _empty_result("Execution reconciliation sweep completed.")
+    service = get_background_sweep_service()
+    return await instrument_background_handler(job_type="EXECUTION_RECONCILIATION", handler=service.reconcile_executions)
 
 
 async def _position_reconciliation_handler() -> BackgroundJobResult:
-    return _empty_result("Position reconciliation sweep completed.")
+    service = get_background_sweep_service()
+    return await instrument_background_handler(job_type="POSITION_RECONCILIATION", handler=service.reconcile_positions)
 
 
 async def _exit_monitoring_handler() -> BackgroundJobResult:
-    return _empty_result("Exit-monitoring sweep completed.")
+    service = get_background_sweep_service()
+    return await instrument_background_handler(job_type="EXIT_MONITORING", handler=service.monitor_exits)
 
 
 async def _stale_workflow_cleanup_handler() -> BackgroundJobResult:
-    return _empty_result("Stale-workflow cleanup sweep completed.")
+    service = get_background_sweep_service()
+    return await instrument_background_handler(job_type="STALE_WORKFLOW_CLEANUP", handler=service.clean_stale_workflows)
 
 
 async def _run_job(
