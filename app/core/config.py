@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     order_execution_key_prefix: str = "stock-signal:order-executions"
     order_execution_ttl_seconds: int = 604800
     order_execution_lock_ttl_seconds: int = 300
+    position_store: Literal["memory", "redis"] = "redis"
+    position_key_prefix: str = "stock-signal:positions"
+    position_ttl_seconds: int = 2592000
+    position_fill_lock_ttl_seconds: int = 300
     signal_review_threshold: float = 65.0
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False
