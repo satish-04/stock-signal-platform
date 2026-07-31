@@ -30,3 +30,7 @@ def _default() -> TradingWorkflowStore:
 def get_trading_workflow_service(settings: Settings | None = None) -> PaperTradingWorkflowService:
     resolved = settings or get_settings()
     return PaperTradingWorkflowService(_build(settings) if settings else _default(), resolved)
+
+
+def get_trading_workflow_store(settings: Settings | None = None) -> TradingWorkflowStore:
+    return _build(settings) if settings else _default()
