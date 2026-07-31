@@ -159,3 +159,25 @@ make signals
 ```
 
 For TradingView, replace the webhook secret in the Pine indicator settings, create one alert using **Any alert() function call**, and use the platform webhook URL. The script constructs the JSON dynamically; do not paste a static alert body.
+
+
+
+Phase 2:
+integrations/mcp/
+├── ibkr/
+│   ├── Dockerfile
+│   ├── server.py
+│   └── README.md
+└── tradingview/
+    ├── README.md
+    └── launch-macos.sh
+
+app/services/mcp/
+├── client.py
+├── ibkr_client.py
+├── tradingview_client.py
+└── schemas.py
+
+config/mcp/
+├── claude-code.example.json
+└── tool-policy.yaml
