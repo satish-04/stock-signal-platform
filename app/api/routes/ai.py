@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -33,6 +34,24 @@ class SelectedOptionResponse(BaseModel):
     selection_reasons: list[str]
 
 
+class RecommendedTradePlanResponse(BaseModel):
+    decision: Literal["APPROVED", "REJECTED"]
+    side: Literal["BUY", "SELL"]
+    order_type: Literal["LIMIT"]
+    quantity: int
+    limit_price: Decimal
+    estimated_debit: Decimal
+    maximum_loss: Decimal
+    stop_price: Decimal
+    first_target_price: Decimal
+    second_target_price: Decimal
+    reward_risk_ratio: Decimal
+    account_risk_pct: Decimal
+    bid_ask_spread_pct: Decimal
+    reasons: list[str]
+    rejection_reasons: list[str]
+
+
 class AIRecommendationResponse(BaseModel):
     symbol: str
     action: str
@@ -47,6 +66,7 @@ class AIRecommendationResponse(BaseModel):
     cons: list[str]
     reasoning: str
     selected_option: SelectedOptionResponse | None
+    trade_plan: RecommendedTradePlanResponse | None
 
 
 @router.get(
@@ -82,6 +102,27 @@ async def recommendation(
             selection_reasons=list(option.selection_reasons),
         )
 
+    trade_plan = None
+    if result.trade_plan is not None:
+        plan = result.trade_plan
+        trade_plan = RecommendedTradePlanResponse(
+            decision=plan.decision,
+            side=plan.side,
+            order_type=plan.order_type,
+            quantity=plan.quantity,
+            limit_price=plan.limit_price,
+            estimated_debit=plan.estimated_debit,
+            maximum_loss=plan.maximum_loss,
+            stop_price=plan.stop_price,
+            first_target_price=plan.first_target_price,
+            second_target_price=plan.second_target_price,
+            reward_risk_ratio=plan.reward_risk_ratio,
+            account_risk_pct=plan.account_risk_pct,
+            bid_ask_spread_pct=plan.bid_ask_spread_pct,
+            reasons=list(plan.reasons),
+            rejection_reasons=list(plan.rejection_reasons),
+        )
+
     return AIRecommendationResponse(
         symbol=result.symbol,
         action=result.action,
@@ -96,4 +137,5 @@ async def recommendation(
         cons=list(result.cons),
         reasoning=result.reasoning,
         selected_option=selected_option,
+        trade_plan=trade_plan,
     )
