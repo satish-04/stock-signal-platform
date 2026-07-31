@@ -2,6 +2,7 @@ from app.services.background_jobs.factory import (
     clear_background_job_store_cache,
     get_background_job_store,
 )
+from app.services.background_jobs.instrumentation import instrument_background_handler
 from app.services.background_jobs.models import (
     BackgroundJob,
     BackgroundJobResult,
@@ -19,6 +20,7 @@ from app.services.background_jobs.store import (
     InMemoryBackgroundJobStore,
     RedisBackgroundJobStore,
 )
+from app.services.background_jobs.sweeps import BackgroundSweepService, SweepDefinition
 
 __all__ = [
     "BackgroundAutomationDisabledError",
@@ -29,9 +31,12 @@ __all__ = [
     "BackgroundJobStatus",
     "BackgroundJobStore",
     "BackgroundJobType",
+    "BackgroundSweepService",
     "DuplicateBackgroundJobError",
     "InMemoryBackgroundJobStore",
     "RedisBackgroundJobStore",
+    "SweepDefinition",
     "clear_background_job_store_cache",
     "get_background_job_store",
+    "instrument_background_handler",
 ]
