@@ -47,6 +47,25 @@ class SelectedOptionContract:
 
 
 @dataclass(frozen=True)
+class RecommendedTradePlan:
+    decision: Literal["APPROVED", "REJECTED"]
+    side: Literal["BUY", "SELL"]
+    order_type: Literal["LIMIT"]
+    quantity: int
+    limit_price: Decimal
+    estimated_debit: Decimal
+    maximum_loss: Decimal
+    stop_price: Decimal
+    first_target_price: Decimal
+    second_target_price: Decimal
+    reward_risk_ratio: Decimal
+    account_risk_pct: Decimal
+    bid_ask_spread_pct: Decimal
+    reasons: tuple[str, ...]
+    rejection_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AIRecommendation:
     symbol: str
 
@@ -73,3 +92,4 @@ class AIRecommendation:
     reasoning: str
 
     selected_option: SelectedOptionContract | None = None
+    trade_plan: RecommendedTradePlan | None = None

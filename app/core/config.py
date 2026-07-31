@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     ibkr_account: str = ""
     ibkr_news_providers: str = ""
     max_risk_per_trade_pct: float = 0.50
+    risk_account_equity: float = 100000.0
+    risk_available_funds: float = 50000.0
+    max_position_value_pct: float = 2.0
+    max_option_contracts: int = 5
+    max_option_spread_pct: float = 5.0
+    minimum_option_open_interest: int = 1000
+    minimum_option_volume: int = 250
+    minimum_reward_risk_ratio: float = 2.0
+    option_stop_loss_pct: float = 20.0
+    option_first_target_pct: float = 40.0
+    option_second_target_pct: float = 80.0
     max_daily_loss_pct: float = 1.50
     max_open_positions: int = 5
     signal_ttl_seconds: int = 120
