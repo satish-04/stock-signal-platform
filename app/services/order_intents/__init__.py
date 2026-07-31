@@ -3,6 +3,7 @@ from app.services.order_intents.models import (
     OrderIntentStatus,
     OrderSubmissionResult,
 )
+from app.services.order_intents.redis_store import RedisOrderIntentStore
 from app.services.order_intents.service import (
     LiveTradingBlockedError,
     OrderIntentRejectedError,
@@ -12,6 +13,8 @@ from app.services.order_intents.service import (
 from app.services.order_intents.store import (
     DuplicateOrderIntentError,
     InMemoryOrderIntentStore,
+    OrderIntentNotFoundError,
+    OrderIntentStore,
 )
 
 __all__ = [
@@ -19,9 +22,12 @@ __all__ = [
     "InMemoryOrderIntentStore",
     "LiveTradingBlockedError",
     "OrderIntent",
+    "OrderIntentNotFoundError",
     "OrderIntentRejectedError",
     "OrderIntentStatus",
+    "OrderIntentStore",
     "OrderSubmissionDisabledError",
     "OrderSubmissionResult",
     "PaperOrderApprovalService",
+    "RedisOrderIntentStore",
 ]
