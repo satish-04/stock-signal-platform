@@ -89,6 +89,13 @@ class Settings(BaseSettings):
     background_sweep_batch_size: int = 100
     background_sweep_stale_workflow_seconds: int = 900
     background_sweep_index_ttl_seconds: int = 2592000
+    broker_event_store: Literal["memory", "redis"] = "redis"
+    broker_event_key_prefix: str = "stock-signal:broker-events"
+    broker_event_ttl_seconds: int = 2592000
+    broker_event_lock_ttl_seconds: int = 300
+    broker_event_batch_size: int = 100
+    ibkr_callback_queue_size: int = 10000
+    ibkr_callback_ingestion_enabled: bool = True
     signal_review_threshold: float = 65.0
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False
@@ -101,6 +108,14 @@ class Settings(BaseSettings):
             raise RuntimeError("BACKGROUND_SWEEP_STALE_WORKFLOW_SECONDS must be greater than zero")
         if self.background_sweep_index_ttl_seconds <= 0:
             raise RuntimeError("BACKGROUND_SWEEP_INDEX_TTL_SECONDS must be greater than zero")
+        if self.broker_event_ttl_seconds <= 0:
+            raise RuntimeError("BROKER_EVENT_TTL_SECONDS must be greater than zero")
+        if self.broker_event_lock_ttl_seconds <= 0:
+            raise RuntimeError("BROKER_EVENT_LOCK_TTL_SECONDS must be greater than zero")
+        if self.broker_event_batch_size <= 0:
+            raise RuntimeError("BROKER_EVENT_BATCH_SIZE must be greater than zero")
+        if self.ibkr_callback_queue_size <= 0:
+            raise RuntimeError("IBKR_CALLBACK_QUEUE_SIZE must be greater than zero")
         if self.signal_review_threshold >= self.signal_actionable_threshold:
             raise RuntimeError("SIGNAL_REVIEW_THRESHOLD must be lower than SIGNAL_ACTIONABLE_THRESHOLD")
         if self.trading_mode == "live" and not self.enable_live_trading:
