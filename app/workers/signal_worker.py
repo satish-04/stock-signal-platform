@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from redis.asyncio import Redis
@@ -38,7 +38,7 @@ async def persist_result(result: dict, candidate: dict, decision) -> TradeSignal
         status=result["status"],
         details=details,
         risk_approved=decision.approved,
-        expires_at=datetime.now(timezone.utc) + timedelta(seconds=settings.signal_ttl_seconds),
+        expires_at=datetime.now(UTC) + timedelta(seconds=settings.signal_ttl_seconds),
     )
     async with SessionLocal() as session:
         async with session.begin():
