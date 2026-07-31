@@ -62,3 +62,10 @@ class IBKRBrokerAdapter:
         raise NotImplementedError(
             "Implement paper combination-order submission first."
         )
+
+    async def cancel_order(self, order: dict):
+        if not self.settings.enable_order_submission:
+            raise PermissionError("Order submission disabled.")
+        raise NotImplementedError(
+            "Implement IBKR paper-order cancellation callbacks first."
+        )
