@@ -136,5 +136,13 @@ class MockBrokerAdapter:
     async def submit_order(self, order: dict) -> dict:
         return {
             "status": "simulated",
+            "broker_order_id": f"paper-{order.get('execution_id', 'order')}",
+            "order": order,
+        }
+
+    async def cancel_order(self, order: dict) -> dict:
+        return {
+            "status": "cancelled",
+            "broker_order_id": order["broker_order_id"],
             "order": order,
         }
