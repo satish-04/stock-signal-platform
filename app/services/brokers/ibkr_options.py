@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -63,6 +64,7 @@ class IBKROptionsClient:
     def fetch_chain(
         self,
         symbol: str,
+        include_market_data: bool = False,
     ) -> list[IBKROptionSnapshot]:
         EClient, EWrapper, Contract = self._load_ibkr_api()
 
@@ -71,6 +73,9 @@ class IBKROptionsClient:
         chain_done = threading.Event()
 
         errors: list[str] = []
+
+        quote_events: dict[int, threading.Event] = {}
+        quote_data: dict[int, dict[str, object]] = {}
 
         underlying_conid: int | None = None
         expirations: set[str] = set()
@@ -124,6 +129,92 @@ class IBKROptionsClient:
             ) -> None:
                 del reqId
                 chain_done.set()
+
+            def tickPrice(
+                self,
+                reqId: int,
+                tickType: int,
+                price: float,
+                attrib: Any,
+            ) -> None:
+                del attrib
+
+                data = quote_data.get(reqId)
+                if data is None:
+                    return
+
+                if tickType in {1, 66}:
+                    data["bid"] = Decimal(str(price))
+                elif tickType in {2, 67}:
+                    data["ask"] = Decimal(str(price))
+
+            def tickSize(
+                self,
+                reqId: int,
+                tickType: int,
+                size: Decimal,
+            ) -> None:
+                data = quote_data.get(reqId)
+                if data is None:
+                    return
+
+                value = int(size)
+
+                if tickType in {8, 74}:
+                    data["volume"] = value
+                elif tickType in {27, 28, 86, 87}:
+                    data["open_interest"] = max(
+                        int(data.get("open_interest", 0)),
+                        value,
+                    )
+
+            def tickOptionComputation(
+                self,
+                reqId: int,
+                tickType: int,
+                tickAttrib: int,
+                impliedVol: float,
+                delta: float,
+                optPrice: float,
+                pvDividend: float,
+                gamma: float,
+                vega: float,
+                theta: float,
+                undPrice: float,
+            ) -> None:
+                del (
+                    tickType,
+                    tickAttrib,
+                    optPrice,
+                    pvDividend,
+                    undPrice,
+                )
+
+                data = quote_data.get(reqId)
+                if data is None:
+                    return
+
+                if impliedVol >= 0:
+                    data["implied_volatility"] = impliedVol
+                if -1.0 <= delta <= 1.0:
+                    data["delta"] = delta
+                if gamma >= 0:
+                    data["gamma"] = gamma
+                if vega >= 0:
+                    data["vega"] = vega
+                if theta <= 0:
+                    data["theta"] = theta
+
+                event = quote_events.get(reqId)
+                if event is not None:
+                    event.set()
+
+            def marketDataType(
+                self,
+                reqId: int,
+                marketDataType: int,
+            ) -> None:
+                del reqId, marketDataType
 
             def error(self, *args: Any) -> None:
                 if len(args) >= 4 and isinstance(args[2], int):
@@ -300,7 +391,79 @@ class IBKROptionsClient:
                     f"{symbol.upper()} {nearest_expiry}."
                 )
 
-            return snapshots
+            if not include_market_data:
+                return snapshots
+
+            app.reqMarketDataType(3)
+
+            enriched: list[IBKROptionSnapshot] = []
+
+            for index, snapshot in enumerate(snapshots):
+                req_id = 3000 + index
+
+                quote_events[req_id] = threading.Event()
+                quote_data[req_id] = {
+                    "bid": Decimal("0"),
+                    "ask": Decimal("0"),
+                    "volume": 0,
+                    "open_interest": 0,
+                    "implied_volatility": 0.0,
+                    "delta": 0.0,
+                    "gamma": 0.0,
+                    "theta": 0.0,
+                    "vega": 0.0,
+                }
+
+                option = Contract()
+                option.conId = snapshot.conid
+                option.symbol = snapshot.symbol
+                option.secType = "OPT"
+                option.exchange = "SMART"
+                option.currency = "USD"
+                option.lastTradeDateOrContractMonth = snapshot.expiry
+                option.strike = float(snapshot.strike)
+                option.right = snapshot.right
+                option.multiplier = "100"
+
+                app.reqMktData(
+                    req_id,
+                    option,
+                    "",
+                    False,
+                    False,
+                    [],
+                )
+
+                quote_events[req_id].wait(timeout=1.5)
+
+                time.sleep(0.05)
+
+                app.cancelMktData(req_id)
+
+                data = quote_data[req_id]
+
+                enriched.append(
+                    IBKROptionSnapshot(
+                        conid=snapshot.conid,
+                        symbol=snapshot.symbol,
+                        expiry=snapshot.expiry,
+                        strike=snapshot.strike,
+                        right=snapshot.right,
+                        bid=data["bid"],
+                        ask=data["ask"],
+                        volume=int(data["volume"]),
+                        open_interest=int(data["open_interest"]),
+                        implied_volatility=float(
+                            data["implied_volatility"]
+                        ),
+                        delta=float(data["delta"]),
+                        gamma=float(data["gamma"]),
+                        theta=float(data["theta"]),
+                        vega=float(data["vega"]),
+                    )
+                )
+
+            return enriched
 
         finally:
             if app.isConnected():
