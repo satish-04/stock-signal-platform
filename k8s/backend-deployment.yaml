@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: stock-signal-app
+  labels:
+    app: stock-signal-app
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: stock-signal-app
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: stock-signal-app
+        component: backend
+    spec:
+      containers:
+        - name: app
+          image: your-docker-registry/stock-signal-app:latest
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - secretRef:
+                name: stock-signal-app-secrets
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: DJANGO_SETTINGS_MODULE
+              value: config.settings.production
+            - name: TRADING_MODE
+              value: ${TRADING_MODE:-paper}
+            - name: MARKET_DATA_MODE
+              value: ${MARKET_DATA_MODE:-mock}
+          command:
+            - uvicorn
+            - app.main:app
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8000"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 40
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: stock-signal-app-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: stock-signal-app
+  labels:
+    app: stock-signal-app
+    component: backend
+spec:
+  selector:
+    app: stock-signal-app
+    component: backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stock-signal-app-config
+  namespace: stock-signal-app
+data:
+  dev.yaml: |
+    # Development configuration
+  prod.yaml: |
+    # Production configuration
+  environment.yaml: |
+    # Production environment settings

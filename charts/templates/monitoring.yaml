@@ -1,0 +1,394 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "stock-signal-app.fullname" . }}-backend
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: http
+      interval: {{ .Values.monitoring.scrapeInterval }}
+      path: /metrics
+      scheme: http
+
+---
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "stock-signal-app.fullname" . }}-frontend
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: http
+      interval: {{ .Values.monitoring.scrapeInterval }}
+      path: /metrics
+      scheme: http
+
+---
+# PrometheusRule for alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: stock-signal-app.rules
+      rules:
+        - alert: BackendHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{app="{{ include "stock-signal-app.fullname" . }}-backend", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{app="{{ include "stock-signal-app.fullname" . }}-backend"}[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High error rate in backend service"
+            description: "Error rate is above 5% for {{ include "stock-signal-app.fullname" . }}-backend"
+
+        - alert: FrontendHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{app="{{ include "stock-signal-app.fullname" . }}-frontend", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{app="{{ include "stock-signal-app.fullname" . }}-frontend"}[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High error rate in frontend service"
+            description: "Error rate is above 5% for {{ include "stock-signal-app.fullname" . }}-frontend"
+
+        - alert: HighMemoryUsage
+          expr: |
+            container_memory_usage_bytes{container=~"backend|frontend", namespace="{{ .Release.Namespace }}"}
+            / container_spec_memory_limit_bytes{container=~"backend|frontend", namespace="{{ .Release.Namespace }}"} > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage detected"
+            description: "Memory usage is above 80% for container"
+
+        - alert: PodCrashLooping
+          expr: |
+            rate(container_last{container=~"backend|frontend", namespace="{{ .Release.Namespace }}", status!="running"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod is crash looping"
+            description: "Container {{ $labels.container }} is repeatedly crashing"
+
+---
+# Grafana Dashboard
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-grafana-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+data:
+  stock-signal-app-dashboard.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "Prometheus",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "targets": [
+            {
+              "expr": "100 - (avg(rate(process_cpu_seconds_total{app=\"{{ include \"stock-signal-app.fullname\" . }}-backend\"}[5m])) * 100)",
+              "legendFormat": "Backend CPU Usage",
+              "refId": "A"
+            },
+            {
+              "expr": "100 - (avg(rate(process_cpu_seconds_total{app=\"{{ include \"stock-signal-app.fullname\" . }}-frontend\"}[5m])) * 100)",
+              "legendFormat": "Frontend CPU Usage",
+              "refId": "B"
+            }
+          ],
+          "title": "CPU Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 0
+          },
+          "id": 4,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "targets": [
+            {
+              "expr": "container_memory_usage_bytes{container=\"backend\", namespace=\"{{ .Release.Namespace }}\"}",
+              "legendFormat": "Backend Memory",
+              "refId": "A"
+            },
+            {
+              "expr": "container_memory_usage_bytes{container=\"frontend\", namespace=\"{{ .Release.Namespace }}\"}",
+              "legendFormat": "Frontend Memory",
+              "refId": "B"
+            }
+          ],
+          "title": "Memory Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 6,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{app=~\"{{ include \"stock-signal-app.fullname\" . }}-.*\"}[5m])) by (status)",
+              "legendFormat": "Status {{ $label.status }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Request Rate by Status",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "{{ .Values.monitoring.scrapeInterval }}",
+      "schemaVersion": 30,
+      "style": "dark",
+      "tags": [
+        "stock-signal-app"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Stock Signal App Dashboard",
+      "uid": "stock-signal-app-dashboard",
+      "version": 1
+    }

@@ -1,0 +1,321 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+{{- if .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml .Values.serviceAccount.annotations | nindent 4 }}
+{{- end }}
+automountServiceAccountToken: false
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-secrets
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  DB_HOST: {{ .Values.database.host }}
+  DB_PORT: "{{ .Values.database.port }}"
+  DB_USER: {{ .Values.database.username }}
+  DB_NAME: {{ .Values.database.name }}
+  REDIS_HOST: {{ .Values.redis.host }}
+  REDIS_PORT: "{{ .Values.redis.port }}"
+  SECRET_KEY: {{ .Values.secrets.secretKey }}
+  DJANGO_ALLOWED_HOSTS: "{{ (list (printf "%s.%s.svc.cluster.local" (include "stock-signal-app.fullname" .) .Release.Namespace) | join ",") }}"
+  ANTHROPIC_API_KEY: {{ .Values.secrets.anthropicApiKey }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+data:
+  environment.yaml: |
+    # Production environment configuration
+  prod.yaml: |
+    # Production settings
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "stock-signal-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        {{- include "stock-signal-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: {{ include "stock-signal-app.fullname" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ include "stock-signal-app.fullname" . }}-secrets
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          command:
+            - uvicorn
+            - app.main:app
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8000"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 40
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "stock-signal-app.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "stock-signal-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "stock-signal-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+    spec:
+      serviceAccountName: {{ include "stock-signal-app.fullname" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: frontend
+          image: "{{ .Values.image.repository }}-frontend:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.frontendResources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.frontendService.type }}
+  ports:
+    - port: {{ .Values.frontendService.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "stock-signal-app.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "stock-signal-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "stock-signal-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      serviceAccountName: {{ include "stock-signal-app.fullname" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ include "stock-signal-app.fullname" . }}-secrets
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          command:
+            - python
+            - -m
+            - app.workers.market_data_worker
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
+{{- if .Values.ingress.tls }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+{{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+{{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        {{- range .Values.ingress.hosts }}
+        - {{ .host | quote }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tls[0].secretName }}
+{{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "stock-signal-app.fullname" $ }}-{{ if eq .path "/api" }}backend{{ else }}frontend{{ end }}
+                port:
+                  number: {{ if eq .path "/api" }}{{ $.Values.service.port }}{{ else }}{{ $.Values.frontendService.port }}{{ end }}
+          {{- end }}
+    {{- end }}
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "stock-signal-app.fullname" . }}-backend
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "stock-signal-app.fullname" . }}-frontend
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}

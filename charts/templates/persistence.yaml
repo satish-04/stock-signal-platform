@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.postgresql.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.postgresql.size }}
+{{- if .Values.persistence.postgresql.storageClass }}
+  storageClassName: {{ .Values.persistence.postgresql.storageClass }}
+{{- end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.redis.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.redis.size }}
+{{- if .Values.persistence.redis.storageClass }}
+  storageClassName: {{ .Values.persistence.redis.storageClass }}
+{{- end }}
+
+---
+# PersistentVolume for PostgreSQL (development only - use storage class in production)
+{{- if not .Values.persistence.postgresql.storageClass }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-postgresql-pv
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.postgresql.size }}
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /data/postgresql
+{{- end }}
+
+---
+# PersistentVolume for Redis (development only - use storage class in production)
+{{- if not .Values.persistence.redis.storageClass }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "stock-signal-app.fullname" . }}-redis-pv
+  labels:
+    {{- include "stock-signal-app.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.redis.size }}
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /data/redis
+{{- end }}

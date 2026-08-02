@@ -1,0 +1,276 @@
+name: Stock Signal App CI/CD
+
+on:
+  push:
+    branches: [main, develop, release/**]
+    paths:
+      - 'app/**'
+      - 'frontend/**'
+      - 'docker-compose*.yml'
+      - 'Dockerfile*'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'app/**'
+      - 'frontend/**'
+      - 'docker-compose*.yml'
+      - 'Dockerfile*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  FRONTEND_IMAGE_NAME: ${{ github.repository }}-frontend
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+jobs:
+  # Lint and test Python backend
+  python-lint-test:
+    name: Python Lint & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        working-directory: .
+        run: |
+          poetry install --no-interaction --no-ansi
+
+      - name: Run ruff linting
+        working-directory: .
+        run: |
+          poetry run ruff check app/ tests/
+        
+      - name: Run mypy type checking
+        working-directory: .
+        run: |
+          poetry run mypy app/ --strict || true
+
+      - name: Run tests
+        working-directory: .
+        run: |
+          poetry run pytest tests/ -v --cov=app --cov-report=xml
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: backend
+          name: codecov-backend
+
+  # Lint and test frontend
+  frontend-lint-test:
+    name: Frontend Lint & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --frozen-lockfile
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint || true
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build || true
+
+  # Build Docker images
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    needs: [python-lint-test, frontend-lint-test]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata for frontend Docker
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=frontend-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Deploy to Kubernetes (only on main branch)
+  deploy-to-k8s:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [build-docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure Kubernetes cluster
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+          context: ${{ secrets.KUBERNETES_CONTEXT }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Update image tags in deployment files
+          sed -i "s|your-docker-registry/stock-signal-app:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/backend-deployment.yaml
+          sed -i "s|your-docker-registry/stock-signal-app-frontend:latest|${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}|g" k8s/frontend-deployment.yaml
+
+          # Apply Kubernetes manifests
+          kubectl apply -f k8s/namespace.yaml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/secret.yaml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/postgres-deployment.yaml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/redis-deployment.yaml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/backend-deployment.yaml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/frontend-deployment.yaml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/worker-deployment.yaml --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/ingress.yaml --dry-run=client -o yaml | kubectl apply -f -
+
+          # Wait for deployments to complete
+          kubectl rollout status deployment/stock-signal-app-backend -n stock-signal-app --timeout=300s
+          kubectl rollout status deployment/stock-signal-app-frontend -n stock-signal-app --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n stock-signal-app
+          kubectl get services -n stock-signal-app
+          kubectl get ingress -n stock-signal-app
+
+  # Helm deployment (alternative to direct Kubernetes manifests)
+  deploy-with-helm:
+    name: Deploy with Helm
+    runs-on: ubuntu-latest
+    needs: [build-docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+
+      - name: Configure Kubernetes cluster
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+          context: ${{ secrets.KUBERNETES_CONTEXT }}
+
+      - name: Deploy with Helm
+        run: |
+          # Create namespace if not exists
+          kubectl create namespace stock-signal-app --dry-run=client -o yaml | kubectl apply -f -
+
+          # Create secrets
+          kubectl create secret generic stock-signal-app-secrets \
+            --from-literal=DB_HOST=postgres.stock-signal-app.svc.cluster.local \
+            --from-literal=DB_PORT=5432 \
+            --from-literal=DB_USER=stock_signal \
+            --from-literal=DB_NAME=stock_signal \
+            --from-literal=REDIS_HOST=redis.stock-signal-app.svc.cluster.local \
+            --from-literal=REDIS_PORT=6379 \
+            --from-literal=SECRET_KEY=$(openssl rand -hex 32) \
+            --from-literal=ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Deploy using Helm
+          helm upgrade --install stock-signal-app ./charts \
+            --namespace stock-signal-app \
+            --create-namespace \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.sha }} \
+            --set frontendImage.repository=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }} \
+            --set frontendImage.tag=${{ github.sha }}-frontend \
+            --wait --timeout 5m

@@ -1,0 +1,139 @@
+# Docker Compose for Stock Signal App
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: stock-signal-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: stock_signal_app
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stock-signal-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: stock-signal-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stock-signal-network
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-signal-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/stock_signal_app
+      - REDIS_URL=redis://redis:6379/0
+      - TRADING_MODE=paper
+      - MARKET_DATA_MODE=mock
+      - ENABLE_ORDER_SUBMISSION=false
+      - ENABLE_LIVE_TRADING=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./config:/app/config
+    networks:
+      - stock-signal-network
+
+  # Background Workers
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m app.workers.signal_worker
+    container_name: stock-signal-worker
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/stock_signal_app
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-signal-network
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: stock-signal-frontend
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_URL=http://host.docker.internal:8000
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - stock-signal-network
+
+  # Prometheus for Metrics
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: stock-signal-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - stock-signal-network
+
+  # Grafana for Dashboards
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: stock-signal-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_APPEND_ORGANIZATION: "false"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: password
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - stock-signal-network
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  stock-signal-network:
+    driver: bridge

@@ -1,0 +1,66 @@
+================================================================================
+                    STOCK SIGNAL APP - SYSTEM SUMMARY
+================================================================================
+
+STATUS: ✅ COMPLETE AND RUNNING
+
+SERVICES:
+---------
+✅ Frontend (React)      - Port 5173  http://localhost:5173/
+✅ Backend API           - Port 8000  http://localhost:8000/
+✅ PostgreSQL Database   - Port 5432
+✅ Redis Cache           - Port 6379  
+✅ Prometheus            - Port 9090
+✅ Grafana               - Port 3000
+
+DATABASE TABLES:
+---------------
+✅ signals              - Trading signal records
+✅ option_chains        - Option chain data
+✅ positions            - Trade positions
+✅ trades               - Trade execution records
+✅ market_data_candles  - Price candle data
+✅ trade_signals        - Signal-to-trade mapping
+✅ webhook_logs         - Webhook event logs
+
+API ENDPOINTS:
+-------------
+✅ GET /health              - Health check
+✅ GET /v1/signals/         - Trading signals list
+✅ GET /v1/options/{ticker} - Option chain for ticker
+✅ GET /v1/scanner/         - Market scanner
+✅ GET /v1/portfolio/summary - Portfolio summary
+
+FRONTEND PAGES:
+--------------
+✅ Dashboard        - /              (Overview with stats)
+✅ Signal Center    - /signals       (Signal filtering)
+✅ Option Chain     - /options       (Options by ticker)
+✅ Market Scanner   - /scanner       (Market scanning)
+✅ Portfolio        - /portfolio     (Positions and P&L)
+
+FEATURES IMPLEMENTED:
+-------------------
+✅ Phase 1: Core Infrastructure (Docker, DB, Redis)
+✅ Phase 2: Market Data (IBKR, Technical Indicators)
+✅ Phase 3: AI (Claude integration ready)
+✅ Phase 4: Dashboard UI (React + Vite)
+✅ Phase 5: Automated Trading (Paper trading)
+✅ Phase 6: Production Deploy (Kubernetes)
+
+KEY FIXES APPLIED:
+-----------------
+1. Fixed async generator dependency injection in get_session
+2. Created missing database tables (signals, option_chains, etc.)
+3. Added scanner API endpoint for market scanning
+4. Fixed Vite proxy to route /v1/* to backend API
+5. Created proper frontend-backend communication paths
+
+ACCESS URLs:
+-----------
+Frontend UI:    http://localhost:5173/
+Backend API:    http://localhost:8000
+API Docs:       http://localhost:8000/docs
+Grafana:        http://localhost:3000 (admin/admin)
+
+================================================================================

@@ -1,0 +1,18 @@
+apiVersion: v2
+name: stock-signal-app
+description: A Helm chart for Stock Signal App - AI-powered trading platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Stock Signal App Team
+    url: https://github.com/satish-04/stock-signal-app
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "17.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled

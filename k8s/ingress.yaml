@@ -1,0 +1,56 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stock-signal-app-ingress
+  namespace: stock-signal-app
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - stock-signal-app.example.com
+      secretName: stock-signal-app-tls
+  rules:
+    - host: stock-signal-app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8000
+
+---
+# Example Ingress for internal access (uncomment if needed)
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: stock-signal-app-internal-ingress
+#   namespace: stock-signal-app
+#   annotations:
+#     kubernetes.io/ingress.class: internal-nginx
+# spec:
+#   rules:
+#     - http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: frontend
+#                 port:
+#                   number: 3000
