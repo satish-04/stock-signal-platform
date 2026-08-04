@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False
     enable_live_trading: bool = False
+    cors_allowed_origins: str = "http://localhost:5175,http://localhost:8090"
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
     def validate_safety(self) -> None:
         if self.background_sweep_batch_size <= 0:
