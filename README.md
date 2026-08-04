@@ -36,6 +36,31 @@ Services:
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
 
+## Dashboard
+
+A React + TypeScript + Vite dashboard lives in `frontend/`, covering signals, positions/portfolio, options, market charts, risk/AI trade planning, orders, trading workflows, and background jobs — responsive across desktop and mobile.
+
+Local development (fastest iteration, hot reload):
+
+```bash
+cd frontend
+cp .env.example .env      # VITE_API_BASE_URL, defaults to http://localhost:8080
+npm install
+npm run dev                # http://localhost:5175
+```
+
+The API must allow the dashboard's origin via CORS — set `CORS_ALLOWED_ORIGINS` in the root `.env` (defaults to `http://localhost:5175,http://localhost:8090`).
+
+Via Docker Compose (serves the production build through nginx):
+
+```bash
+docker compose up -d --build frontend
+```
+
+Then open http://localhost:8090. Enter an account ID in the top bar to load positions/portfolio/workflows (the backend has no "list accounts" endpoint — accounts are free-form strings). Seed sample signals with `make seed` to populate the Signals and Overview pages.
+
+Note: ports 5175 (dev) and 8090 (Docker) were chosen because 5173/5174, Vite's usual default range, are already occupied by stray dev-server processes from another local project.
+
 ## Claude
 
 Add `ANTHROPIC_API_KEY` to `.env`. The service uses structured JSON classification. When absent, it fails safely to neutral/no-trade analysis.
@@ -196,12 +221,12 @@ Phase 5
 □ News analysis
 □ Multi-agent consensus
 
-Phase 6
+Phase 6 ✅ Dashboard
 ──────────────────────
-□ React Dashboard
-□ Live charts
-□ Option chain
-□ Portfolio
+✔ React Dashboard
+✔ Live charts
+✔ Option chain
+✔ Portfolio
 □ Watchlist
 
 Phase 7
