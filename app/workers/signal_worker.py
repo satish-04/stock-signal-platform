@@ -14,6 +14,7 @@ from app.services.brokers.factory import get_broker
 from app.services.llm.claude import ClaudeNewsAnalyzer
 from app.services.news.context import recent_research_context
 from app.services.options.engine import OptionsEngine
+from app.services.quant.service import regime_for_scoring
 from app.services.risk.engine import RiskEngine
 from app.services.signals.engine import SignalEngine
 from app.services.technical.engine import TechnicalScoringEngine
@@ -32,6 +33,8 @@ async def persist_result(result: dict, candidate: dict, decision) -> TradeSignal
         "technical_analysis": result["technical_analysis"],
         "research_context": result.get("research_context", []),
     }
+    if result.get("market_regime"):
+        details["market_regime"] = result["market_regime"]
     signal = TradeSignal(
         symbol=result["symbol"],
         direction=result["direction"],
@@ -112,7 +115,10 @@ async def run() -> None:
                         candidate = options.choose_defined_risk(news["direction"], chain)
                         decision = risk.evaluate(candidate)
                         technical_result = technicals.score(tv.model_dump(), news["direction"])
-                        score, score_components = signals.score(news, technical_result.score)
+                        regime_score, market_regime = await regime_for_scoring(news["direction"])
+                        score, score_components = signals.score(
+                            news, technical_result.score, regime=regime_score
+                        )
                         classification = signals.classify(score, decision.approved)
                         result = {
                             "symbol": tv.symbol,
@@ -125,6 +131,7 @@ async def run() -> None:
                             "score_components": score_components,
                             "technical_analysis": technical_result.model_dump(),
                             "research_context": research_sources,
+                            "market_regime": market_regime,
                             "risk_approved": decision.approved,
                             "risk_reasons": decision.reasons,
                             "source_event_id": event_id,

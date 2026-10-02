@@ -38,7 +38,7 @@ Services:
 
 ## Dashboard
 
-A React + TypeScript + Vite dashboard lives in `frontend/`, covering signals, positions/portfolio, options, an options scanner, reviewed research, market charts, risk/AI trade planning, orders, trading workflows, and background jobs — responsive across desktop and mobile.
+A React + TypeScript + Vite dashboard lives in `frontend/`, covering signals, positions/portfolio, options, an options scanner, reviewed research, a quant lab, market charts, risk/AI trade planning, orders, trading workflows, and background jobs — responsive across desktop and mobile.
 
 Local development (fastest iteration, hot reload):
 
@@ -84,6 +84,18 @@ curl -s -X POST http://localhost:8080/api/v1/scanner/options \
 ```
 
 The scanner reads live Yahoo Finance data regardless of `MARKET_DATA_MODE` and needs outbound internet access from the API container. It is research only: scans never create signals, never feed a score, and never place orders. Yahoo data is unofficial and can be delayed, incomplete or rate-limited; index options such as SPX are not covered reliably.
+
+## Quant lab
+
+The dashboard's **Quant lab** page tests strategies on history before you trust them, and reads the current market regime.
+
+- **Backtest:** `POST /api/v1/quant/backtest` runs a strategy on daily history (Yahoo Finance), sweeping its parameter grid and ranking by Sharpe ratio. Strategies: `ema_cross` (trend) and `rsi_reversion` (mean reversion). Positions are long or flat, decided at each close and earning the next day's return, with a cost per position change.
+- **Walk-forward validation:** parameters are chosen on two years of data, traded on the following six months, then the window rolls forward. Only that unseen-data result is an honest estimate; the best full-sample parameters are picked with hindsight. "Edge retained" compares the two, and a value near zero means the sweep fitted noise.
+- **Market regime:** `GET /api/v1/quant/regime` classifies an index (default SPY) by trend (close and 50-day average against the 200-day average) and volatility (20-day realised volatility against its past year).
+
+Set `REGIME_SCORING_ENABLED=true` to feed the regime into the signal score in place of the fixed 70 for its 10% market-regime component: 85 with the trend, 60 in a mixed trend, 30 against it, less 15 in high volatility. It is off by default, and any data failure falls back to 70. Each signal then records the regime it was scored with.
+
+Backtests are research only. Past performance on daily bars, with simple costs and no slippage model, does not predict live results.
 
 ## Research integrations
 

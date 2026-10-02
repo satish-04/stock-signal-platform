@@ -96,6 +96,8 @@ class Settings(BaseSettings):
     broker_event_batch_size: int = 100
     ibkr_callback_queue_size: int = 10000
     ibkr_callback_ingestion_enabled: bool = True
+    regime_scoring_enabled: bool = False
+    regime_index_symbol: str = "SPY"
     signal_review_threshold: float = 65.0
     signal_actionable_threshold: float = 80.0
     enable_order_submission: bool = False

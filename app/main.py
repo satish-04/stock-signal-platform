@@ -17,6 +17,7 @@ from app.api.routes import (
     order_intents,
     positions,
     position_exits,
+    quant,
     research,
     scanner,
     signals,
@@ -68,4 +69,5 @@ app.include_router(trading_workflows.router)
 app.include_router(scanner.router)
 app.include_router(research.router)
 app.include_router(dashboard.router)
+app.include_router(quant.router)
 app.mount("/metrics", make_asgi_app())
