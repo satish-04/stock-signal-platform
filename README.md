@@ -38,7 +38,7 @@ Services:
 
 ## Dashboard
 
-A React + TypeScript + Vite dashboard lives in `frontend/`, covering signals, positions/portfolio, options, market charts, risk/AI trade planning, orders, trading workflows, and background jobs — responsive across desktop and mobile.
+A React + TypeScript + Vite dashboard lives in `frontend/`, covering signals, positions/portfolio, options, an options scanner, market charts, risk/AI trade planning, orders, trading workflows, and background jobs — responsive across desktop and mobile.
 
 Local development (fastest iteration, hot reload):
 
@@ -60,6 +60,30 @@ docker compose up -d --build frontend
 Then open http://localhost:8090. Enter an account ID in the top bar to load positions/portfolio/workflows (the backend has no "list accounts" endpoint — accounts are free-form strings). Seed sample signals with `make seed` to populate the Signals and Overview pages.
 
 Note: ports 5175 (dev) and 8090 (Docker) were chosen because 5173/5174, Vite's usual default range, are already occupied by stray dev-server processes from another local project.
+
+## Options scanner
+
+The dashboard's **Scanner** page shows where options volume and implied volatility are concentrated. Press **Scan market** whenever you want a fresh read; a scan takes roughly ten seconds to a minute, and each one is stored in PostgreSQL.
+
+- **Universe:** about 160 liquid option names plus the day's most-active stocks and biggest gainers and losers.
+- **Expiry:** the next weekly (Friday) expiry by default, rolling to the following Friday once an expiry Friday has closed. Pick any date to override it. Symbols that do not list the expiry are skipped and reported.
+- **Highest volume:** symbols ranked by contracts traded for the expiry.
+- **Highest IV:** symbols ranked by at-the-money implied volatility, limited to those with at least 1% of the busiest symbol's volume.
+- **Strike detail:** select a row for its three most-traded call and put strikes, with contracts, open interest, last price, implied volatility and premium traded.
+
+Implied volatility is solved from option prices, not taken from the data provider, whose own figure drops to zero overnight when bid and ask are withdrawn. After hours the scan uses last-trade prices as of the last trade, so an evening scan describes the session just closed. Open interest is shown as unknown when the provider has blanked it.
+
+```bash
+make scan            # start a scan from the command line
+make scan-results    # print the latest scan
+
+# A custom watchlist or expiry
+curl -s -X POST http://localhost:8080/api/v1/scanner/options \
+  -H 'Content-Type: application/json' \
+  -d '{"symbols": ["NVDA", "TSLA", "SPY"], "expiry": "2026-10-09"}'
+```
+
+The scanner reads live Yahoo Finance data regardless of `MARKET_DATA_MODE` and needs outbound internet access from the API container. It is research only: scans never create signals, never feed a score, and never place orders. Yahoo data is unofficial and can be delayed, incomplete or rate-limited; index options such as SPX are not covered reliably.
 
 ## Claude
 
@@ -110,6 +134,8 @@ make logs
 make test
 make lint
 make seed
+make scan            # start an options scan
+make scan-results
 ```
 
 ## Production-hardening backlog
