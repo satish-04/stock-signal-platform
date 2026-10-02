@@ -8,6 +8,7 @@ from app.api.routes import (
     ai,
     analysis,
     background_jobs,
+    dashboard,
     dev,
     health,
     historical,
@@ -16,6 +17,7 @@ from app.api.routes import (
     order_intents,
     positions,
     position_exits,
+    research,
     scanner,
     signals,
     technical_signals,
@@ -64,4 +66,6 @@ app.include_router(position_exits.router)
 app.include_router(trade_risk.router)
 app.include_router(trading_workflows.router)
 app.include_router(scanner.router)
+app.include_router(research.router)
+app.include_router(dashboard.router)
 app.mount("/metrics", make_asgi_app())
