@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-import yfinance as yf
 
 from app.services.scanner.engine import ChainSnapshot, OptionQuote, Right
 
@@ -24,16 +23,21 @@ class YahooOptionsProvider:
     screens = ("most_actives", "day_gainers", "day_losers")
 
     def __init__(self) -> None:
+        # Imported here, not at module level, so a problem with this one dependency fails
+        # a scan instead of stopping the whole API from starting.
+        import yfinance
+
+        self._yf = yfinance
         # The API container runs as a user without a home directory, so yfinance's default
         # cache location is not writable there.
-        yf.set_tz_cache_location(str(Path(tempfile.gettempdir()) / "yfinance-cache"))
+        yfinance.set_tz_cache_location(str(Path(tempfile.gettempdir()) / "yfinance-cache"))
 
     def screen_symbols(self, count: int = 25) -> list[str]:
         log = structlog.get_logger()
         symbols: list[str] = []
         for screen in self.screens:
             try:
-                quotes = yf.screen(screen, count=count)["quotes"]
+                quotes = self._yf.screen(screen, count=count)["quotes"]
             except Exception:  # noqa: BLE001 - screens only widen the universe
                 log.warning("options_scan_screen_failed", screen=screen)
                 continue
@@ -42,7 +46,7 @@ class YahooOptionsProvider:
 
     def chain(self, symbol: str, expiry: str) -> ChainSnapshot | None:
         """Return the chain for ``expiry``, or None when the symbol does not list it."""
-        ticker = yf.Ticker(symbol)
+        ticker = self._yf.Ticker(symbol)
         if expiry not in ticker.options:
             return None
         chain = ticker.option_chain(expiry)

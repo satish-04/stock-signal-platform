@@ -24,3 +24,15 @@ def test_scan_rejects_an_expiry_in_the_past() -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Expiry must be today or later"
+
+
+def test_api_starts_without_loading_the_market_data_library() -> None:
+    # The scanner's data library is loaded only when a scan runs, so it cannot stop the
+    # rest of the API from starting.
+    import subprocess
+    import sys
+
+    probe = "import sys, app.main; print('yfinance' in sys.modules)"
+    result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=True)
+
+    assert result.stdout.strip() == "False"
