@@ -9,6 +9,7 @@ const PositionsPage = lazy(() => import('@/features/positions/PositionsPage').th
 const OptionsPage = lazy(() => import('@/features/options/OptionsPage').then((m) => ({ default: m.OptionsPage })))
 const ScannerPage = lazy(() => import('@/features/scanner/ScannerPage').then((m) => ({ default: m.ScannerPage })))
 const ResearchPage = lazy(() => import('@/features/research/ResearchPage').then((m) => ({ default: m.ResearchPage })))
+const QuantPage = lazy(() => import('@/features/quant/QuantPage').then((m) => ({ default: m.QuantPage })))
 const MarketPage = lazy(() => import('@/features/market/MarketPage').then((m) => ({ default: m.MarketPage })))
 const RiskPage = lazy(() => import('@/features/risk/RiskPage').then((m) => ({ default: m.RiskPage })))
 const OrdersPage = lazy(() => import('@/features/orders/OrdersPage').then((m) => ({ default: m.OrdersPage })))
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: '/options', element: withSuspense(<OptionsPage />) },
       { path: '/scanner', element: withSuspense(<ScannerPage />) },
       { path: '/research', element: withSuspense(<ResearchPage />) },
+      { path: '/quant', element: withSuspense(<QuantPage />) },
       { path: '/market', element: withSuspense(<MarketPage />) },
       { path: '/risk', element: withSuspense(<RiskPage />) },
       { path: '/orders', element: withSuspense(<OrdersPage />) },
