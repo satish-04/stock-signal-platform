@@ -8,6 +8,8 @@ export interface ScanStrike {
   last: number
   /** null when the price carries no time value to solve from. */
   implied_volatility: number | null
+  /** null when implied volatility could not be solved. */
+  delta: number | null
   premium: number
 }
 
