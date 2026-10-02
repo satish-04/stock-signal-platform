@@ -45,6 +45,7 @@ function StrikeTable({ title, strikes }: { title: string; strikes: ScanStrike[] 
               <th className="py-1.5 pr-2 font-medium">Open int.</th>
               <th className="py-1.5 pr-2 font-medium">Last</th>
               <th className="py-1.5 pr-2 font-medium">IV</th>
+              <th className="py-1.5 pr-2 font-medium">Delta</th>
               <th className="py-1.5 font-medium">Premium</th>
             </tr>
           </thead>
@@ -56,6 +57,7 @@ function StrikeTable({ title, strikes }: { title: string; strikes: ScanStrike[] 
                 <td className="py-1.5 pr-2 text-text-primary">{formatCompact(strike.open_interest)}</td>
                 <td className="py-1.5 pr-2 text-text-primary">{formatNumber(strike.last)}</td>
                 <td className="py-1.5 pr-2 text-text-primary">{formatIv(strike.implied_volatility)}</td>
+                <td className="py-1.5 pr-2 text-text-primary">{formatNumber(strike.delta)}</td>
                 <td className="py-1.5 text-text-primary">{formatCurrency(strike.premium, 0)}</td>
               </tr>
             ))}
