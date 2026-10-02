@@ -45,6 +45,12 @@ export function formatInteger(value: string | number | null | undefined): string
   return n.toLocaleString('en-US')
 }
 
+export function formatCompact(value: string | number | null | undefined, fractionDigits = 1): string {
+  const n = toNumber(value)
+  if (n === null) return '—'
+  return n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: fractionDigits })
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—'
   const date = new Date(value)

@@ -1,0 +1,13 @@
+{
+  "secret": "REPLACE_WITH_YOUR_SECRET",
+  "symbol": "{{ticker}}",
+  "exchange": "{{exchange}}",
+  "timeframe": "{{interval}}",
+  "timestamp": "{{timenow}}",
+  "close": {{close}},
+  "volume": {{volume}},
+  "signal": "bullish_breakout",
+  "strategy": "ema_vwap_relative_volume",
+  "bar_confirmed": true,
+  "indicators": {}
+}
