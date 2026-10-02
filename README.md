@@ -38,7 +38,7 @@ Services:
 
 ## Dashboard
 
-A React + TypeScript + Vite dashboard lives in `frontend/`, covering signals, positions/portfolio, options, an options scanner, market charts, risk/AI trade planning, orders, trading workflows, and background jobs — responsive across desktop and mobile.
+A React + TypeScript + Vite dashboard lives in `frontend/`, covering signals, positions/portfolio, options, an options scanner, reviewed research, market charts, risk/AI trade planning, orders, trading workflows, and background jobs — responsive across desktop and mobile.
 
 Local development (fastest iteration, hot reload):
 
@@ -85,20 +85,44 @@ curl -s -X POST http://localhost:8080/api/v1/scanner/options \
 
 The scanner reads live Yahoo Finance data regardless of `MARKET_DATA_MODE` and needs outbound internet access from the API container. It is research only: scans never create signals, never feed a score, and never place orders. Yahoo data is unofficial and can be delayed, incomplete or rate-limited; index options such as SPX are not covered reliably.
 
+## Research integrations
+
+Reviewed Grok X reports and AI Trading Board analyses can be imported as auditable research context. The signal worker considers the five newest imported artifacts from the last seven days for the matching symbol; they inform Claude's news analysis but do not bypass the score thresholds or risk checks. Each signal records which artifacts it considered.
+
+Both tools live in this repository and run on their own: `grok-x-research/` builds a reviewed research report from X posts, and `trading/ai-trading-board/` is a CLI that scores a stock and can export its analysis as JSON. See the README in each folder.
+
+```bash
+# Export a machine-readable trading-board analysis
+cd trading/ai-trading-board
+python cli.py analyze AAPL --json > /tmp/AAPL-analysis.json
+cd ../..
+
+# Import either that JSON file or a reviewed Grok output/REPORT.md
+export TRADINGVIEW_WEBHOOK_SECRET="$(grep '^TRADINGVIEW_WEBHOOK_SECRET=' .env | cut -d= -f2-)"
+python scripts/import_research.py grok-x-research/output/AAPL_run_20260930/REPORT.md \
+  --symbol AAPL --provider grok-x-research --headline "Reviewed X research" --reviewer "your-name"
+python scripts/import_research.py /tmp/AAPL-analysis.json \
+  --symbol AAPL --provider ai-trading-board --headline "Trading Board analysis" --reviewer "your-name"
+```
+
+Imports require the webhook secret and a named reviewer. Browse imported records on the dashboard's **Research** page or at `GET /api/v1/research/artifacts?symbol=AAPL`. Research content is treated as untrusted source material: the signal and risk engines remain authoritative, and no research integration places orders.
+
 ## Claude
 
-Add `ANTHROPIC_API_KEY` to `.env`. The service uses structured JSON classification. When absent, it fails safely to neutral/no-trade analysis.
+Add `ANTHROPIC_API_KEY` to `.env`. The service uses structured JSON classification. When the key is absent it fails safely to a neutral, zero-confidence analysis. News confidence carries 35% of the signal score, so without a key the maximum score is 57 and every signal is rejected.
 
 ## TradingView
 
-1. Paste `pine/enterprise_signal.pine` into Pine Editor and add it to a chart.
-2. Create alerts on the indicator conditions.
+1. Paste `pine/enterprise_signal.pine` into the Pine Editor and add it to a chart.
+2. In the indicator settings, set **Webhook secret** to your `TRADINGVIEW_WEBHOOK_SECRET`.
 3. Expose local port 8080 with an HTTPS tunnel.
-4. Set webhook URL to `https://YOUR-TUNNEL/api/v1/webhooks/tradingview`.
-5. Use `config/tradingview-message.json`, replacing the secret and signal name.
-6. Create separate bullish and bearish alerts so each sends the correct `signal` value.
+4. Create one alert on the indicator with the condition **Any alert() function call** and the webhook URL `https://YOUR-TUNNEL/api/v1/webhooks/tradingview`. The script builds the JSON payload itself and emits both `bullish_breakout` and `bearish_breakdown`.
 
-Never place credentials in the TradingView message.
+`config/tradingview-message.json` is a sample of the payload the script sends, useful for testing the webhook with `curl`.
+
+`config/tradingview-message.template.json` is a message template for alerts created without the Pine script. Replace the secret and signal name, and create separate bullish and bearish alerts so each sends the correct `signal` value. It sends no indicator values, so the technical score is 0 and the signal is always rejected; use it to test webhook delivery, not to generate signals.
+
+Only confirmed-bar signals are accepted. Never place broker or API credentials in the TradingView message; the webhook secret is the only secret it carries.
 
 ## IBKR paper integration
 
@@ -133,10 +157,17 @@ make down
 make logs
 make test
 make lint
-make seed
+make seed            # same as seed-strong
+make seed-weak
+make seed-bearish
 make scan            # start an options scan
 make scan-results
+make migrate
+make migration m="describe change"
+make dashboard
 ```
+
+Alembic is wired to the database in `DATABASE_URL`. No migration exists yet and startup still creates missing tables, so `make migrate` is a no-op until the first `make migration`.
 
 ## Production-hardening backlog
 
