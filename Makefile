@@ -1,4 +1,4 @@
-.PHONY: init up down logs test lint format health seed signals
+.PHONY: init up down logs test lint format health seed signals scan scan-results
 init:
 	@test -f .env || cp .env.example .env
 	docker compose build
@@ -21,3 +21,9 @@ seed:
 
 signals:
 	curl -fsS 'http://localhost:8080/api/v1/signals?limit=20' | python3 -m json.tool
+
+scan:
+	curl -fsS -X POST http://localhost:8080/api/v1/scanner/options | python3 -m json.tool
+
+scan-results:
+	curl -fsS http://localhost:8080/api/v1/scanner/options/latest | python3 -m json.tool
