@@ -12,6 +12,7 @@ from app.models.entities import RiskDecisionRecord, TradeSignal
 from app.schemas.events import TradingViewWebhook
 from app.services.brokers.factory import get_broker
 from app.services.llm.claude import ClaudeNewsAnalyzer
+from app.services.news.context import recent_research_context
 from app.services.options.engine import OptionsEngine
 from app.services.risk.engine import RiskEngine
 from app.services.signals.engine import SignalEngine
@@ -29,6 +30,7 @@ async def persist_result(result: dict, candidate: dict, decision) -> TradeSignal
         "actionable": result["actionable"],
         "score_components": result["score_components"],
         "technical_analysis": result["technical_analysis"],
+        "research_context": result.get("research_context", []),
     }
     signal = TradeSignal(
         symbol=result["symbol"],
@@ -94,10 +96,15 @@ async def run() -> None:
                             if "bear" in tv.signal.lower()
                             else "neutral"
                         )
+                        async with SessionLocal() as session:
+                            research_context, research_sources = await recent_research_context(
+                                session, tv.symbol
+                            )
                         news = await claude.analyze(
                             tv.symbol,
                             f"Technical event: {tv.signal}",
                             None,
+                            research_context,
                         )
                         if news["direction"] == "neutral":
                             news["direction"] = direction
@@ -117,6 +124,7 @@ async def run() -> None:
                             "candidate": candidate,
                             "score_components": score_components,
                             "technical_analysis": technical_result.model_dump(),
+                            "research_context": research_sources,
                             "risk_approved": decision.approved,
                             "risk_reasons": decision.reasons,
                             "source_event_id": event_id,
