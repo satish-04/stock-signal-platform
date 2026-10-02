@@ -12,3 +12,8 @@ venv/
 .claude/logs/
 .codex/
 .codex/
+
+# Local environment backups can hold real secrets
+*.env.backup
+.env.*
+!.env.example
