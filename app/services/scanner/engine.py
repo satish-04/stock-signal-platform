@@ -63,6 +63,25 @@ def option_price(spot: float, strike: float, years: float, volatility: float, ri
     return call if right == "C" else call - spot + strike
 
 
+def greeks(
+    spot: float, strike: float, years: float, volatility: float, right: Right
+) -> dict[str, float]:
+    """Black-Scholes Greeks with zero rates and dividends.
+
+    Theta is per calendar day and vega per one volatility point, the units a trader quotes.
+    """
+    root = math.sqrt(years)
+    spread = volatility * root
+    d1 = math.log(spot / strike) / spread + spread / 2
+    density = math.exp(-d1 * d1 / 2) / math.sqrt(2 * math.pi)
+    return {
+        "delta": _normal_cdf(d1) - (0.0 if right == "C" else 1.0),
+        "gamma": density / (spot * spread),
+        "theta": -spot * density * volatility / (2 * root) / 365,
+        "vega": spot * density * root / 100,
+    }
+
+
 def implied_volatility(
     price: float, spot: float, strike: float, years: float, right: Right
 ) -> float | None:
@@ -166,6 +185,11 @@ class OptionsScanEngine:
                     "open_interest": q.open_interest if oi_known else None,
                     "last": round(q.last, 2),
                     "implied_volatility": round(iv, 4) if iv is not None else None,
+                    "delta": (
+                        round(greeks(spot, q.strike, years, iv, q.right)["delta"], 3)
+                        if iv is not None and years is not None
+                        else None
+                    ),
                     "premium": round(q.volume * q.last * 100),
                 }
             )

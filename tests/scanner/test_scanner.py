@@ -9,6 +9,7 @@ from app.services.scanner.engine import (
     ChainSnapshot,
     OptionQuote,
     OptionsScanEngine,
+    greeks,
     implied_volatility,
     next_weekly_expiry,
     option_price,
@@ -140,6 +141,35 @@ def test_implied_volatility_recovers_the_volatility_behind_a_price(right, strike
 )
 def test_implied_volatility_is_none_when_it_cannot_be_solved(price, years):
     assert implied_volatility(price, 110, 100, years, "C") is None
+
+
+def test_greeks_match_known_black_scholes_values():
+    # At the money, one year, 20% volatility, zero rates: d1 = 0.1.
+    call = greeks(100, 100, 1.0, 0.2, "C")
+    assert call["delta"] == pytest.approx(0.5398, abs=1e-4)
+    assert call["gamma"] == pytest.approx(0.019848, abs=1e-5)
+    assert call["vega"] == pytest.approx(0.39695, abs=1e-4)
+    assert call["theta"] == pytest.approx(-0.010875, abs=1e-5)
+    put = greeks(100, 100, 1.0, 0.2, "P")
+    assert put["delta"] == pytest.approx(call["delta"] - 1)
+    assert put["gamma"] == call["gamma"]
+
+
+def test_delta_agrees_with_a_small_change_in_the_price_model():
+    bump = 0.01
+    change = option_price(100 + bump, 105, 0.25, 0.4, "C") - option_price(100 - bump, 105, 0.25, 0.4, "C")
+    assert greeks(100, 105, 0.25, 0.4, "C")["delta"] == pytest.approx(change / (2 * bump), abs=1e-4)
+
+
+def test_top_strikes_carry_delta_when_volatility_can_be_solved():
+    live = summarize(chain(spot=100, quotes=atm_pair(0.5, hours=26, live=True)))
+    assert live["top_calls"][0]["delta"] == pytest.approx(0.5, abs=0.02)
+    assert live["top_puts"][0]["delta"] == pytest.approx(-0.5, abs=0.02)
+    expired = summarize(
+        chain(spot=100, quotes=atm_pair(0.5, hours=26, live=True)),
+        datetime(2026, 10, 2, 20, 30, tzinfo=timezone.utc),
+    )
+    assert expired["top_calls"][0]["delta"] is None
 
 
 def atm_pair(volatility, hours, live):
