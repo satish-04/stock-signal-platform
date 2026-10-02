@@ -29,6 +29,20 @@ class NewsInput(BaseModel):
     source_id: str
     published_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class ResearchArtifactInput(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    provider: Literal["grok-x-research", "ai-trading-board"]
+    headline: str = Field(min_length=1, max_length=512)
+    body: str = Field(min_length=1, max_length=20000)
+    source_id: str = Field(min_length=1, max_length=256)
+    reviewed_by: str = Field(min_length=1, max_length=128)
+    published_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_research_symbol(cls, value: str) -> str:
+        return value.strip().upper()
+
 class SignalView(BaseModel):
     symbol: str
     direction: Literal["bullish", "bearish", "neutral"]
