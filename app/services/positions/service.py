@@ -1,11 +1,20 @@
 import hashlib
+from datetime import datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from app.core.config import Settings, get_settings
 from app.services.order_execution import OrderExecution
 from app.services.positions.accounting import PositionAccountingEngine, PositionAccountingError
 from app.services.positions.models import ExecutionFill, Position, PositionUpdateResult
 from app.services.positions.store import PositionNotFoundError, PositionStore
+
+MARKET_TIMEZONE = ZoneInfo("America/New_York")
+
+
+def trading_day(moment: datetime) -> str:
+    """The US market date a moment falls on, used to bucket realized P&L by day."""
+    return moment.astimezone(MARKET_TIMEZONE).date().isoformat()
 
 
 class PositionExecutionError(RuntimeError):
@@ -52,10 +61,15 @@ class PaperPositionService:
             else:
                 result = PositionAccountingEngine.apply_fill(position, fill)
             await self.store.save_update(result.position, fill)
-            return result
         except (PositionAccountingError, ValueError, RuntimeError):
             await self.store.release_fill(fill.fill_id)
             raise
+        if result.realized_pnl_change:
+            await self.store.record_realized_pnl(
+                fill.account_id, trading_day(fill.filled_at), fill.fill_id,
+                result.realized_pnl_change,
+            )
+        return result
 
     async def get(self, position_id: str) -> Position:
         position = await self.store.get_position(position_id)

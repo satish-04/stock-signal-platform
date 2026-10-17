@@ -9,6 +9,8 @@ A local-first, paper-trading-by-default platform that combines TradingView techn
 - Order submission disabled
 - Live trading requires two explicit switches and a completed IBKR adapter
 - Claude never receives an unrestricted order-placement tool
+- `TRADING_HALTED=true` blocks every new entry; exits still go through
+- Daily-loss lock: once today's realized P&L plus open unrealized P&L loses `MAX_DAILY_LOSS_PCT` of `RISK_ACCOUNT_EQUITY`, new entries are refused (HTTP 403) until the next US trading day. Exits are never blocked.
 
 ## Start on macOS
 
@@ -192,7 +194,7 @@ Alembic is wired to the database in `DATABASE_URL`. No migration exists yet and 
 - Notification adapter for Slack/Telegram/email
 - Manual approval UI
 - Backtesting and walk-forward evaluation
-- Kill switch, daily-loss lock, symbol allowlist and trading-hours policy
+- Symbol allowlist and trading-hours policy
 - Signed webhook gateway and replay cache
 - Encrypted backups and restore tests
 - CI security scanning, SBOM and pinned image digests

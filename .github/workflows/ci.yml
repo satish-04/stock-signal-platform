@@ -13,6 +13,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked files with gitleaks
+        # Scans the checked-out tree, so any committed secret fails the build. History is
+        # not scanned: a leaked value must be removed by rewriting history and rotated.
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -sSfLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep linux_x64 "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
+          ./gitleaks dir "$GITHUB_WORKSPACE" --redact --no-banner --verbose
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest

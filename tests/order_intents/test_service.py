@@ -65,6 +65,7 @@ def settings(**overrides: object) -> Settings:
     return Settings(
         tradingview_webhook_secret="test-webhook-secret-123456",
         order_intent_store="memory",
+        position_store="memory",
         **overrides,
     )
 

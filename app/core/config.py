@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     option_first_target_pct: float = 40.0
     option_second_target_pct: float = 80.0
     max_daily_loss_pct: float = 1.50
+    trading_halted: bool = False
     max_open_positions: int = 5
     signal_ttl_seconds: int = 120
     order_intent_store: Literal["memory", "redis"] = "redis"
