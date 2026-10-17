@@ -8,6 +8,7 @@ from app.api.routes import (
     ai,
     analysis,
     background_jobs,
+    broker_events,
     dashboard,
     dev,
     health,
@@ -61,6 +62,7 @@ app.include_router(technical_signals.router)
 app.include_router(ai.router)
 app.include_router(options.router)
 app.include_router(order_executions.router)
+app.include_router(broker_events.router)
 app.include_router(order_intents.router)
 app.include_router(positions.router)
 app.include_router(position_exits.router)
