@@ -155,6 +155,15 @@ Only confirmed-bar signals are accepted. Never place broker or API credentials i
    - combo-order submission only after paper validation
 8. Change `MARKET_DATA_MODE=ibkr` only after tests pass.
 
+## Broker fills
+
+Fills reach positions through broker events, which the IBKR callback bridge (not yet built) is meant to post:
+
+- `POST /api/v1/broker-events/executions` takes an execDetails report. It advances the order's filled quantity (partial, then filled), books the fill into the position and records realized P&L for the US trading day, which feeds the daily-loss lock.
+- `POST /api/v1/broker-events/order-status` takes an orderStatus callback and moves the order to acknowledged, cancelled or rejected.
+- Each event is stored once by its broker execution ID or status, so replays change nothing. A report that arrives before its order is linked is marked failed and retried by the background sweeps, up to `WORKER_MAX_RETRIES`, then dead-lettered. A report that contradicts its order (side, contract, overfill) is dead-lettered at once.
+- With `MARKET_DATA_MODE=mock`, `POST /api/v1/broker-events/simulate-fill/{execution_id}` with `{"account_id": "PAPER1"}` fills a submitted order at its limit price, so the whole loop can be tried locally.
+
 ## Event flow
 
 ```text

@@ -8,6 +8,8 @@ from app.services.background_jobs.candidates import (
     POSITION_RECONCILIATION_STATUSES,
     WORKFLOW_RECONCILIATION_STATUSES,
 )
+from app.services.broker_events.factory import get_broker_event_service
+from app.services.brokers.factory import get_broker
 from app.services.order_execution.factory import (
     get_order_execution_service,
     get_order_execution_store,
@@ -73,7 +75,8 @@ class ConcreteExecutionSweepAdapter:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.store = get_order_execution_store(settings)
-        self.service = get_order_execution_service(settings)
+        self.service = get_order_execution_service(get_broker(), settings=settings)
+        self.broker_events = get_broker_event_service(settings=settings)
 
     async def list_reconciliation_candidates(self) -> list[SweepCandidate]:
         ids = await self.store.list_ids_by_statuses(
@@ -89,6 +92,13 @@ class ConcreteExecutionSweepAdapter:
         execution = await self.service.get(execution_id)
         if not self.settings.paper_workflow_auto_submit and execution.status == "SUBMISSION_PENDING":
             return None
+        if execution.broker_order_id:
+            # e.g. a fill that arrived before the order was linked to its broker ID.
+            retried = await self.broker_events.retry_failed_for_broker_order(
+                execution.broker_order_id
+            )
+            if retried:
+                return f"retried {retried} failed broker event(s)"
         return f"execution remains {execution.status}; awaiting persisted broker callback"
 
 
@@ -96,9 +106,10 @@ class ConcretePositionSweepAdapter:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.execution_store = get_order_execution_store(settings)
-        self.execution_service = get_order_execution_service(settings)
+        self.execution_service = get_order_execution_service(get_broker(), settings=settings)
         self.position_store = get_position_store(settings)
         self.exit_service = get_position_exit_service(settings)
+        self.broker_events = get_broker_event_service(settings=settings)
 
     async def list_reconciliation_candidates(self) -> list[SweepCandidate]:
         ids = await self.execution_store.list_ids_by_statuses(
@@ -111,8 +122,13 @@ class ConcretePositionSweepAdapter:
         ]
 
     async def reconcile(self, execution_id: str) -> str | None:
-        del execution_id
-        return None
+        # Fills reach positions when broker events are ingested; this retries any whose
+        # position update failed.
+        execution = await self.execution_service.get(execution_id)
+        if not execution.broker_order_id:
+            return None
+        retried = await self.broker_events.retry_failed_for_broker_order(execution.broker_order_id)
+        return f"retried {retried} failed broker event(s)" if retried else None
 
     async def list_exit_candidates(self) -> list[SweepCandidate]:
         ids = await self.position_store.list_ids_by_statuses(
