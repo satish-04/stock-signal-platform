@@ -12,7 +12,7 @@ from app.services.background_jobs import (
 
 def build_settings(*, enabled: bool = True, retries: int = 2) -> Settings:
     return Settings(
-        tradingview_webhook_secret="0123456789abcdef",
+        tradingview_webhook_secret="0123456789abcdef",  # gitleaks:allow (test value)
         background_automation_enabled=enabled,
         worker_max_retries=retries,
     )
