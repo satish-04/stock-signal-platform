@@ -10,6 +10,7 @@ from app.services.brokers.base import BrokerAdapter
 from app.services.order_intents.factory import get_order_intent_store
 from app.services.order_intents.models import OrderIntent, OrderSubmissionResult
 from app.services.order_intents.store import OrderIntentStore
+from app.services.risk.entry_guard import EntryGuard, default_entry_guard
 from app.services.trade_risk.models import TradePlan
 
 ZERO = Decimal(0)
@@ -33,10 +34,12 @@ class PaperOrderApprovalService:
         broker: BrokerAdapter,
         store: OrderIntentStore | None = None,
         settings: Settings | None = None,
+        entry_guard: EntryGuard | None = None,
     ) -> None:
         self.broker = broker
         self.settings = settings or get_settings()
         self.store = store or get_order_intent_store(self.settings)
+        self.entry_guard = entry_guard or default_entry_guard(self.settings)
 
     @staticmethod
     def _idempotency_key(trade_plan: TradePlan) -> str:
@@ -118,6 +121,7 @@ class PaperOrderApprovalService:
             )
         if not self.settings.enable_order_submission:
             raise OrderSubmissionDisabledError("Order submission is disabled.")
+        await self.entry_guard.check(trade_plan.side)
 
         intent = await self.create_intent(trade_plan)
         order_payload = {

@@ -12,6 +12,7 @@ from app.services.order_intents import (
     OrderSubmissionDisabledError,
     PaperOrderApprovalService,
 )
+from app.services.risk.entry_guard import EntryBlockedError
 from app.services.trade_risk import TradePlan
 
 router = APIRouter(prefix="/api/v1/order-intents", tags=["order-intents"])
@@ -99,6 +100,6 @@ async def submit_order_intent(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except DuplicateOrderIntentError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except (OrderSubmissionDisabledError, LiveTradingBlockedError) as exc:
+    except (OrderSubmissionDisabledError, LiveTradingBlockedError, EntryBlockedError) as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return _response(result.intent, result.broker_response)

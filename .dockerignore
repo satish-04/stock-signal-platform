@@ -1,0 +1,24 @@
+# The API, worker and scheduler get configuration from env_file at runtime,
+# so secrets never need to be in the image.
+.env
+.env.*
+!.env.example
+*.env.backup
+.git
+.github
+.claude
+.codex
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv
+.DS_Store
+# The frontend has its own build context and image.
+frontend
+grafana
+prometheus
+docs
+*.pdf

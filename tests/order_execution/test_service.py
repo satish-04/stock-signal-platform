@@ -28,6 +28,7 @@ def settings(enabled: bool = False) -> Settings:
     return Settings(
         tradingview_webhook_secret="test-webhook-secret-123456",
         enable_order_submission=enabled,
+        position_store="memory",
     )
 
 

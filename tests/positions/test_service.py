@@ -13,6 +13,7 @@ from app.services.positions import (
     PaperPositionService,
     PositionExecutionError,
 )
+from app.services.positions.service import trading_day
 
 
 def settings() -> Settings:
@@ -119,3 +120,19 @@ async def test_reduce_close_mark_and_summary() -> None:
     summary = await subject.portfolio_summary("paper-account")
     assert summary["open_positions"] == 0
     assert summary["realized_pnl"] == Decimal("400.00")
+
+
+@pytest.mark.asyncio
+async def test_closing_fill_records_realized_pnl_for_the_trading_day() -> None:
+    subject = service()
+    await subject.process_fill(fill(), execution())
+    sell_execution = execution(
+        execution_id="execution-2", intent_id="intent-2", side="SELL", broker_order_id="paper-2"
+    )
+    sell_fill = fill(
+        fill_id="fill-2", execution_id="execution-2", side="SELL",
+        broker_order_id="paper-2", fill_price=Decimal(3),
+    )
+    await subject.process_fill(sell_fill, sell_execution)
+    day = trading_day(sell_fill.filled_at)
+    assert await subject.store.get_realized_pnl("paper-account", day) == Decimal("-400.00")

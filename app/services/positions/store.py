@@ -32,6 +32,10 @@ class PositionStore(Protocol):
     async def release_fill(self, fill_id: str) -> None: ...
     async def list_ids_by_statuses(self, statuses: tuple[str, ...], *, limit: int) -> list[str]: ...
     async def list_account_ids(self, *, limit: int) -> list[str]: ...
+    async def record_realized_pnl(
+        self, account_id: str, trading_day: str, fill_id: str, amount: Decimal
+    ) -> None: ...
+    async def get_realized_pnl(self, account_id: str, trading_day: str) -> Decimal: ...
 
 
 class InMemoryPositionStore:
@@ -42,6 +46,7 @@ class InMemoryPositionStore:
         self._by_contract: dict[tuple[str, str, str], str] = {}
         self._lock = asyncio.Lock()
         self._accounts: set[str] = set()
+        self._realized_by_day: dict[tuple[str, str], dict[str, Decimal]] = {}
 
     async def reserve_fill(self, fill_id: str) -> None:
         async with self._lock:
@@ -103,6 +108,18 @@ class InMemoryPositionStore:
         async with self._lock:
             return sorted(self._accounts)[:limit]
 
+    async def record_realized_pnl(
+        self, account_id: str, trading_day: str, fill_id: str, amount: Decimal
+    ) -> None:
+        async with self._lock:
+            self._realized_by_day.setdefault((account_id, trading_day), {})[fill_id] = amount
+
+    async def get_realized_pnl(self, account_id: str, trading_day: str) -> Decimal:
+        async with self._lock:
+            return sum(
+                self._realized_by_day.get((account_id, trading_day), {}).values(), Decimal(0)
+            )
+
 
 class RedisPositionStore:
     def __init__(
@@ -140,6 +157,9 @@ class RedisPositionStore:
 
     def _status_index_key(self, value: str) -> str:
         return f"{self.key_prefix}:status:{value}"
+
+    def _realized_key(self, account: str, trading_day: str) -> str:
+        return f"{self.key_prefix}:realized:{account}:{trading_day}"
 
     @staticmethod
     def _serialize(value: Position | ExecutionFill) -> str:
@@ -263,3 +283,19 @@ class RedisPositionStore:
     async def list_account_ids(self, *, limit: int) -> list[str]:
         values = await self.redis.smembers(self._accounts_key())
         return sorted(v.decode() if isinstance(v, bytes) else v for v in values)[:limit]
+
+    async def record_realized_pnl(
+        self, account_id: str, trading_day: str, fill_id: str, amount: Decimal
+    ) -> None:
+        # One hash field per fill, so a replayed fill overwrites rather than double-counts.
+        key = self._realized_key(account_id, trading_day)
+        pipe = self.redis.pipeline(transaction=True)
+        pipe.hset(key, fill_id, str(amount))
+        pipe.expire(key, self.position_ttl_seconds)
+        await pipe.execute()
+
+    async def get_realized_pnl(self, account_id: str, trading_day: str) -> Decimal:
+        values = await self.redis.hvals(self._realized_key(account_id, trading_day))
+        return sum(
+            (Decimal(v.decode() if isinstance(v, bytes) else v) for v in values), Decimal(0)
+        )

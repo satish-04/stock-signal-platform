@@ -14,6 +14,7 @@ from app.services.order_execution.store import (
     OrderExecutionStore,
 )
 from app.services.order_intents.models import OrderIntent
+from app.services.risk.entry_guard import EntryGuard, default_entry_guard
 
 ZERO = Decimal(0)
 
@@ -40,10 +41,12 @@ class PaperOrderExecutionService:
         broker: BrokerAdapter,
         store: OrderExecutionStore,
         settings: Settings | None = None,
+        entry_guard: EntryGuard | None = None,
     ) -> None:
         self.broker = broker
         self.store = store
         self.settings = settings or get_settings()
+        self.entry_guard = entry_guard or default_entry_guard(self.settings)
 
     @staticmethod
     def _execution_id(intent: OrderIntent) -> str:
@@ -172,6 +175,7 @@ class PaperOrderExecutionService:
 
     async def submit(self, execution_id: str) -> OrderExecution:
         self._validate_submission_safety()
+        await self.entry_guard.check((await self.get(execution_id)).side)
         execution = await self.apply_update(
             execution_id, ExecutionUpdate(status="SUBMISSION_PENDING")
         )

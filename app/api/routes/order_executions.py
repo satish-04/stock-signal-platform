@@ -19,6 +19,7 @@ from app.services.order_execution import (
     get_order_execution_service,
 )
 from app.services.order_intents.factory import get_order_intent_store
+from app.services.risk.entry_guard import EntryBlockedError
 
 router = APIRouter(prefix="/api/v1/order-executions", tags=["order-executions"])
 
@@ -128,7 +129,9 @@ async def submit_execution(execution_id: str) -> OrderExecutionResponse:
         return _response(await _service().submit(execution_id))
     except OrderExecutionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (ExecutionSubmissionDisabledError, ExecutionLiveTradingBlockedError) as exc:
+    except (
+        ExecutionSubmissionDisabledError, ExecutionLiveTradingBlockedError, EntryBlockedError
+    ) as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except InvalidExecutionTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
